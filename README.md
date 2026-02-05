@@ -67,5 +67,3 @@ All credentials are saved locally in `~/.rc/settings.json` (plaintext, not synce
 - If no peers appear, run `tailscale status` to verify connectivity.
 - If the UI doesn't render, run in a TTY (not in a non-interactive shell).
 - SSH key copying requires `sshpass`. Install with: `brew install hudochenkov/sshpass/sshpass`
-
-![preview](preview.png)
