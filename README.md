@@ -13,7 +13,6 @@ Built for monitoring servers running autonomous agents—when you need to check 
 ## Requirements
 
 - `tailscale` installed and logged in
-- `bun`
 
 ## Install
 
