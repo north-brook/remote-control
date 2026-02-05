@@ -14,4 +14,20 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 1
 fi
 
+# Background auto-update (silent, won't affect current run)
+# Updates are applied on next invocation
+(
+  cd "$ROOT_DIR" 2>/dev/null || exit 0
+  # Only update if it's a git repo
+  if [ -d ".git" ]; then
+    git fetch -q origin main 2>/dev/null || exit 0
+    LOCAL=$(git rev-parse HEAD 2>/dev/null)
+    REMOTE=$(git rev-parse origin/main 2>/dev/null)
+    if [ "$LOCAL" != "$REMOTE" ]; then
+      git pull -q origin main 2>/dev/null && bun install --silent 2>/dev/null
+    fi
+  fi
+) &>/dev/null &
+disown 2>/dev/null || true
+
 exec bun run "$ROOT_DIR/src/index.tsx" "$@"
