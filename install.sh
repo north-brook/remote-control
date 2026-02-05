@@ -32,16 +32,20 @@ if ! command -v bun >/dev/null 2>&1; then
   done_step "Installed bun"
 fi
 
+# Install Homebrew on macOS if needed
+if [[ "$OSTYPE" == "darwin"* ]] && ! command -v brew >/dev/null 2>&1; then
+  step "Installing Homebrew..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" >/dev/null 2>&1
+  eval "$(/opt/homebrew/bin/brew shellenv 2>/dev/null || /usr/local/bin/brew shellenv 2>/dev/null)"
+  done_step "Installed Homebrew"
+fi
+
 # Install sshpass if needed
 if ! command -v sshpass >/dev/null 2>&1; then
   step "Installing sshpass..."
   if [[ "$OSTYPE" == "darwin"* ]]; then
-    if command -v brew >/dev/null 2>&1; then
-      brew install hudochenkov/sshpass/sshpass >/dev/null 2>&1
-      done_step "Installed sshpass"
-    else
-      echo -e "${DIM}  sshpass skipped (no brew). Install manually for SSH key copying.${RESET}"
-    fi
+    brew install hudochenkov/sshpass/sshpass >/dev/null 2>&1
+    done_step "Installed sshpass"
   elif command -v apt-get >/dev/null 2>&1; then
     sudo apt-get update >/dev/null 2>&1 && sudo apt-get install -y sshpass >/dev/null 2>&1
     done_step "Installed sshpass"
