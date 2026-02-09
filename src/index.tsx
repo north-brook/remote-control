@@ -22,7 +22,7 @@ import {
   SETTINGS_VERSION,
   type RcSettings,
 } from "./settings.js";
-import { buildSshDirectoryCommand } from "./ssh.js";
+import { buildSshDirectoryCommand, remoteDirectoryArg } from "./ssh.js";
 
 // Load version from package.json
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -170,14 +170,6 @@ function extractPeers(status: StatusJson, includeOffline: boolean): Peer[] {
     });
   }
 
-  peers.sort((a, b) => {
-    if (a.selfPeer !== b.selfPeer) return a.selfPeer ? 1 : -1;
-    return a.shortName.localeCompare(b.shortName);
-  });
-
-  for (let i = 0; i < peers.length; i++) {
-    peers[i].idx = i + 1;
-  }
   return peers;
 }
 
@@ -189,6 +181,40 @@ function preferredHost(peer: Peer): string {
 
 function machineKey(peer: Peer): string {
   return peer.id || peer.name || peer.shortName || peer.ip;
+}
+
+function parseIsoMs(value: string | undefined): number {
+  if (!value) return 0;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function sortPeersByRecency(peers: Peer[], settings: RcSettings): Peer[] {
+  const out = [...peers];
+  out.sort((a, b) => {
+    const aRecent = parseIsoMs(settings.machines[machineKey(a)]?.updatedAt);
+    const bRecent = parseIsoMs(settings.machines[machineKey(b)]?.updatedAt);
+    if (aRecent !== bRecent) return bRecent - aRecent;
+    return a.shortName.localeCompare(b.shortName);
+  });
+  for (let i = 0; i < out.length; i++) out[i].idx = i + 1;
+  return out;
+}
+
+function markMachineUsed(peer: Peer, mode: Mode, user?: string, password?: string, directory?: string): void {
+  if (mode === "ping") return;
+  const settings = loadSettings();
+  const key = machineKey(peer);
+  const existing = settings.machines[key] ?? defaultMachineSettings();
+  const trimmedDirectory = directory?.trim() || "";
+  settings.machines[key] = {
+    ...existing,
+    sshUser: user || existing.sshUser,
+    sshPassword: password || existing.sshPassword,
+    recentDirs: trimmedDirectory ? addRecentDirectory(existing.recentDirs, trimmedDirectory) : existing.recentDirs,
+    updatedAt: nowIso(),
+  };
+  saveSettings(settings);
 }
 
 function isDisabled(peer: Peer): boolean {
@@ -310,19 +336,17 @@ function openScreenSharing(host: string, user?: string, password?: string): void
     eprint("No host found for that device.");
     process.exit(1);
   }
+  if (process.platform !== "darwin") {
+    eprint("Screen mode is only supported on macOS.");
+    process.exit(1);
+  }
   let url: string;
   if (user && password) {
     url = `vnc://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${host}?quality=high`;
   } else {
     url = `vnc://${host}?quality=high`;
   }
-  if (process.platform === "darwin") {
-    Bun.spawn(["open", url]);
-  } else if (process.platform === "linux") {
-    Bun.spawn(["xdg-open", url]);
-  } else {
-    process.stdout.write(`${url}\n`);
-  }
+  Bun.spawn(["open", url]);
 }
 
 function openSsh(host: string, user?: string, directory?: string): void {
@@ -347,6 +371,61 @@ function openSsh(host: string, user?: string, directory?: string): void {
   });
 }
 
+function resolveRemoteDirectory(host: string, user: string | undefined, directory: string | undefined): string {
+  const requested = directory?.trim() || "~";
+  const target = user ? `${user}@${host}` : host;
+  const command = `cd -- ${remoteDirectoryArg(requested)} 2>/dev/null || cd ~; pwd -P`;
+  const proc = Bun.spawnSync(
+    ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-o", "StrictHostKeyChecking=no", target, command],
+    {
+      stdout: "pipe",
+      stderr: "ignore",
+    },
+  );
+  if (proc.exitCode !== 0) return requested;
+  const resolved = new TextDecoder().decode(proc.stdout).trim();
+  return resolved || requested;
+}
+
+function encodeRemoteUriPath(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return normalized
+    .split("/")
+    .map((segment, index) => (index === 0 ? "" : encodeURIComponent(segment)))
+    .join("/");
+}
+
+function buildCursorFolderUri(target: string, remoteDirectory: string): string {
+  const authority = `ssh-remote+${encodeURIComponent(target)}`;
+  return `vscode-remote://${authority}${encodeRemoteUriPath(remoteDirectory)}`;
+}
+
+function openCursor(host: string, user: string | undefined, directory: string | undefined): void {
+  if (!host) {
+    eprint("No host found for that device.");
+    process.exit(1);
+  }
+  if (!hasCommand("cursor")) {
+    eprint("Cursor CLI not found. Install Cursor and run 'Install \"cursor\" command' from Cursor command palette.");
+    process.exit(1);
+  }
+  const target = user ? `${user}@${host}` : host;
+  const requested = directory?.trim() || "~";
+  const remoteDirectory = resolveRemoteDirectory(host, user, directory);
+  if (remoteDirectory.startsWith("/")) {
+    const folderUri = buildCursorFolderUri(target, remoteDirectory);
+    Bun.spawn(["cursor", "--folder-uri", folderUri, "--new-window"], {
+      stdout: "ignore",
+      stderr: "ignore",
+    });
+    return;
+  }
+  Bun.spawn(["cursor", "--remote", `ssh-remote+${target}`, requested, "--new-window"], {
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+}
+
 function ping(host: string): void {
   if (!host) {
     eprint("No host found for that device.");
@@ -359,7 +438,11 @@ function ping(host: string): void {
 // Main App Component - Single render, state-driven pages
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Page = { type: "picker" } | { type: "auth"; peer: Peer; mode: Mode } | { type: "directory"; peer: Peer; user: string };
+type DirectoryMode = Extract<Mode, "ssh" | "cursor">;
+type Page =
+  | { type: "picker" }
+  | { type: "auth"; peer: Peer; mode: Mode }
+  | { type: "directory"; peer: Peer; user: string; mode: DirectoryMode };
 
 type ExitResult =
   | { type: "cancel" }
@@ -367,10 +450,12 @@ type ExitResult =
 
 type AppProps = {
   peers: Peer[];
+  cursorAvailable: boolean;
+  screenAvailable: boolean;
   onExit: (result: ExitResult) => void;
 };
 
-function App({ peers, onExit }: AppProps): JSX.Element | null {
+function App({ peers, cursorAvailable, screenAvailable, onExit }: AppProps): JSX.Element | null {
   const [page, setPage] = useState<Page>({ type: "picker" });
   const [peersList, setPeersList] = useState(peers);
   const mountedRef = useRef(true);
@@ -393,13 +478,17 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
       onExit({ type: "action", peer, mode });
       return;
     }
+    if (mode === "vnc" && (!screenAvailable || osName(peer.os || "") !== "macos")) {
+      process.stdout.write("\x07");
+      return;
+    }
 
     const settings = loadSettings();
     const key = machineKey(peer);
     const entry = settings.machines[key];
 
-    // For SSH, check if key auth already works
-    if (mode === "ssh") {
+    // For SSH/Cursor, check if key auth already works
+    if (mode === "ssh" || mode === "cursor") {
       if (!ensureSshKey()) {
         eprint("Failed to generate SSH key");
         onExit({ type: "cancel" });
@@ -407,7 +496,7 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
       }
 
       if (entry?.sshUser && testSshKeyAuth(peer.shortName, entry.sshUser)) {
-        setPage({ type: "directory", peer, user: entry.sshUser });
+        setPage({ type: "directory", peer, user: entry.sshUser, mode });
         return;
       }
     }
@@ -418,7 +507,7 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
       return;
     }
 
-    // Need auth for both SSH (to copy key) and VNC (to connect)
+    // Need auth for SSH/Cursor (to copy key) and VNC (to connect)
     setPage({ type: "auth", peer, mode });
   };
 
@@ -426,8 +515,8 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
     if (page.type !== "auth") return;
     const { peer, mode } = page;
 
-    // For SSH, copy the key
-    if (mode === "ssh") {
+    // For SSH/Cursor, copy the key
+    if (mode === "ssh" || mode === "cursor") {
       process.stdout.write(`${ANSI.dim}Copying SSH key to ${peer.shortName}...${ANSI.reset}\n`);
       if (!copySshKey(peer.shortName, user, password)) {
         eprint("Failed to copy SSH key. Check your password and try again.");
@@ -448,8 +537,8 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
     };
     saveSettings(settings);
 
-    if (mode === "ssh") {
-      setPage({ type: "directory", peer, user });
+    if (mode === "ssh" || mode === "cursor") {
+      setPage({ type: "directory", peer, user, mode });
       return;
     }
 
@@ -462,7 +551,7 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
 
   const handleDirectorySubmit = (directory: string) => {
     if (page.type !== "directory") return;
-    const { peer, user } = page;
+    const { peer, user, mode } = page;
     const trimmed = directory.trim();
 
     if (trimmed) {
@@ -481,7 +570,7 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
     onExit({
       type: "action",
       peer,
-      mode: "ssh",
+      mode,
       user,
       directory: trimmed,
     });
@@ -496,6 +585,8 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
       <Picker
         version={VERSION}
         peers={peersList}
+        cursorAvailable={cursorAvailable}
+        screenAvailable={screenAvailable}
         onSelect={handleSelect}
         onCancel={() => onExit({ type: "cancel" })}
         _onTick={() => setPeersList([...peersList])}
@@ -529,6 +620,7 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
       <Directory
         version={VERSION}
         peer={page.peer}
+        mode={page.mode}
         recentDirs={recentDirs}
         onSubmit={handleDirectorySubmit}
         onBack={handleDirectoryBack}
@@ -604,7 +696,10 @@ async function promptFallback(peers: Peer[]): Promise<Peer | null> {
 async function main(): Promise<number> {
   const { includeOffline } = parseArgs();
   const status = runTailscaleStatus();
-  const peers = extractPeers(status, includeOffline);
+  const settings = loadSettings();
+  const peers = sortPeersByRecency(extractPeers(status, includeOffline), settings);
+  const cursorAvailable = hasCommand("cursor");
+  const screenAvailable = process.platform === "darwin";
   if (peers.length === 0) {
     process.stdout.write("No peers found.\n");
     return 1;
@@ -630,6 +725,8 @@ async function main(): Promise<number> {
     const app = render(
       <App
         peers={peers}
+        cursorAvailable={cursorAvailable}
+        screenAvailable={screenAvailable}
         onExit={(result) => {
           app.unmount();
           resolve(result);
@@ -645,12 +742,15 @@ async function main(): Promise<number> {
   }
 
   const { peer, mode, user, password, directory } = result;
-  const host = mode === "ssh" ? peer.shortName : preferredHost(peer) || peer.ip;
+  markMachineUsed(peer, mode, user, password, directory);
+  const host = mode === "ssh" || mode === "cursor" ? peer.shortName : preferredHost(peer) || peer.ip;
 
   if (mode === "vnc") {
     openScreenSharing(host, user, password);
   } else if (mode === "ssh") {
     openSsh(host, user, directory);
+  } else if (mode === "cursor") {
+    openCursor(host, user, directory);
   } else {
     ping(host);
   }

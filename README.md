@@ -8,11 +8,13 @@ Built for monitoring servers running autonomous agents—when you need to check 
 
 ## How it works
 
-`rc` connects to your [Tailscale](https://tailscale.com) network, shows all your machines in an interactive picker, and launches a connected terminal (SSH) or a virtual screen (VNC) with a single keypress. In terminal mode, `rc` asks for an optional starting directory before connecting. Credentials are cached so subsequent connections are instant.
+`rc` connects to your [Tailscale](https://tailscale.com) network, shows all your machines in an interactive picker, and launches a connected terminal (SSH), virtual screen (VNC), or Cursor Remote SSH session with a single keypress. In terminal/cursor modes, `rc` asks for an optional starting directory before connecting. Credentials are cached so subsequent connections are instant.
 
 ## Requirements
 
 - [Tailscale](https://tailscale.com) installed and logged in on all machines
+- [Cursor](https://cursor.com/) installed locally if you want to use Cursor mode
+- Cursor Remote SSH extension installed in Cursor (search for `Anysphere Remote SSH`)
 
 ## Remote Machine Setup
 
@@ -24,7 +26,6 @@ Enable these on each machine you want to connect to:
 
 **Linux:**
 1. **SSH:** Usually enabled by default. If not: `sudo systemctl enable --now sshd`
-2. **VNC:** Install a VNC server like `x11vnc` or `tigervnc`
 
 ## Install
 
@@ -46,12 +47,12 @@ Options:
 
 - **Arrow keys** - navigate the machine list
 - **Enter** - connect to selected machine
-- **Tab** - switch between terminal (SSH) and screen (VNC) modes
+- **Tab** - switch between available modes (terminal, screen, cursor)
 - **/** - open search, then type to filter machines
 - **Esc** - close search (if open) or quit
 
-Directory screen (terminal mode):
-- **Type a path** - start SSH in that directory (for example `~/project`)
+Directory screen (terminal/cursor mode):
+- **Type a path** - start SSH/Cursor in that directory (for example `~/project`)
 - **Arrow keys** - choose a recent directory
 - **Tab** - switch between path input and recents list
 - **Enter** - connect (blank input defaults to `~`)
@@ -73,7 +74,10 @@ All credentials are saved locally in `~/.rc/settings.json` (plaintext, not synce
 ## Notes
 
 - On macOS, `rc` opens the built-in Screen Sharing app via `vnc://`.
-- On Linux, it uses `xdg-open` if available.
+- Cursor mode launches your local Cursor app using Remote SSH (`cursor --remote ...`).
+- Cursor mode is only shown when the `cursor` CLI command is installed.
+- Screen mode is only shown when both machines are macOS (your local machine and the selected target machine).
+- Machines are sorted by most recently used connection.
 
 ## Troubleshooting
 

@@ -3,11 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { reduceDirectoryInput } from "./directory-controller.js";
 import { Header } from "./header.js";
 import { TextInput } from "./input.js";
-import type { Peer } from "./machines.js";
+import type { Mode, Peer } from "./machines.js";
 
 type DirectoryProps = {
   version: string;
   peer: Peer;
+  mode: Extract<Mode, "ssh" | "cursor">;
   recentDirs: string[];
   onSubmit: (directory: string) => void;
   onBack: () => void;
@@ -17,6 +18,7 @@ type DirectoryProps = {
 export function Directory({
   version,
   peer,
+  mode,
   recentDirs,
   onSubmit,
   onBack,
@@ -77,7 +79,7 @@ export function Directory({
     <Box flexDirection="column" paddingY={1}>
       <Header version={version}>
         <Text>
-          <Text dimColor>choose terminal directory for </Text>
+          <Text dimColor>choose {mode === "ssh" ? "terminal" : "cursor"} directory for </Text>
           <Text>{peer.shortName}</Text>
         </Text>
       </Header>

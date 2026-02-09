@@ -78,9 +78,19 @@ describe("reducePickerInput", () => {
     expect(reducePickerInput(baseState({ selected: 0 }), "\x1b[F").state.selected).toBe(1);
   });
 
-  test("tab cycles between ssh and vnc", () => {
+  test("tab cycles between ssh, vnc, and cursor", () => {
     expect(reducePickerInput(baseState({ mode: "ssh" }), "\t").state.mode).toBe("vnc");
-    expect(reducePickerInput(baseState({ mode: "vnc" }), "\t").state.mode).toBe("ssh");
+    expect(reducePickerInput(baseState({ mode: "vnc" }), "\t").state.mode).toBe("cursor");
+    expect(reducePickerInput(baseState({ mode: "cursor" }), "\t").state.mode).toBe("ssh");
+  });
+
+  test("tab skips cursor when cursor mode is unavailable", () => {
+    expect(reducePickerInput(baseState({ mode: "ssh", modes: ["ssh", "vnc"] }), "\t").state.mode).toBe("vnc");
+    expect(reducePickerInput(baseState({ mode: "vnc", modes: ["ssh", "vnc"] }), "\t").state.mode).toBe("ssh");
+  });
+
+  test("tab is stable when only one mode is available", () => {
+    expect(reducePickerInput(baseState({ mode: "ssh", modes: ["ssh"] }), "\t").state.mode).toBe("ssh");
   });
 
   test("enter beeps for disabled peer", () => {

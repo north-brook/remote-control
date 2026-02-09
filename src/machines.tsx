@@ -4,7 +4,7 @@ import { Header } from "./header.js";
 import { TextInput } from "./input.js";
 import { isDisabled, matchPeer, osName, reducePickerInput } from "./picker-controller.js";
 
-type Mode = "vnc" | "ssh" | "ping";
+type Mode = "vnc" | "ssh" | "cursor" | "ping";
 
 type Peer = {
   idx: number;
@@ -26,12 +26,29 @@ function clamp(value: number, min: number, max: number): number {
 type PickerProps = {
   version: string;
   peers: Peer[];
+  cursorAvailable: boolean;
+  screenAvailable: boolean;
   onSelect: (peer: Peer, mode: Mode) => void;
   onCancel: () => void;
   _onTick: () => void;
 };
 
-export function Picker({ version, peers, onSelect, onCancel, _onTick }: PickerProps): JSX.Element {
+function availableModesForPeer(peer: Peer | undefined, cursorAvailable: boolean, screenAvailable: boolean): Mode[] {
+  const modes: Mode[] = ["ssh"];
+  if (screenAvailable && peer && osName(peer.os || "") === "macos") modes.push("vnc");
+  if (cursorAvailable) modes.push("cursor");
+  return modes;
+}
+
+export function Picker({
+  version,
+  peers,
+  cursorAvailable,
+  screenAvailable,
+  onSelect,
+  onCancel,
+  _onTick,
+}: PickerProps): JSX.Element {
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState(0);
   const [mode, setMode] = useState<Mode>("ssh");
@@ -41,18 +58,29 @@ export function Picker({ version, peers, onSelect, onCancel, _onTick }: PickerPr
     const needle = filter.trim();
     return peers.filter((p) => matchPeer(p, needle));
   }, [filter, peers]);
+  const selectedPeer = list[selected] || list[0];
+  const modes = useMemo(
+    () => availableModesForPeer(selectedPeer, cursorAvailable, screenAvailable),
+    [selectedPeer, cursorAvailable, screenAvailable],
+  );
 
   // Keep refs to avoid stale closure issues
   const listRef = useRef(list);
   const selectedRef = useRef(selected);
   const modeRef = useRef(mode);
+  const modesRef = useRef(modes);
   const showSearchRef = useRef(showSearch);
   const filterRef = useRef(filter);
   listRef.current = list;
   selectedRef.current = selected;
   modeRef.current = mode;
+  modesRef.current = modes;
   showSearchRef.current = showSearch;
   filterRef.current = filter;
+
+  useEffect(() => {
+    if (!modes.includes(mode)) setMode(modes[0]);
+  }, [modes, mode]);
 
   useEffect(() => {
     if (selected > list.length - 1) setSelected(Math.max(0, list.length - 1));
@@ -70,6 +98,7 @@ export function Picker({ version, peers, onSelect, onCancel, _onTick }: PickerPr
           list: listRef.current,
           selected: selectedRef.current,
           mode: modeRef.current,
+          modes: modesRef.current,
           showSearch: showSearchRef.current,
           filter: filterRef.current,
         },
@@ -150,12 +179,17 @@ export function Picker({ version, peers, onSelect, onCancel, _onTick }: PickerPr
             {mode === "ssh" ? (
               <>
                 <Text color="cyan">~ terminal</Text>
-                <Text dimColor> (tab to cycle)</Text>
+                {modes.length > 1 ? <Text dimColor> (tab to cycle)</Text> : null}
               </>
             ) : mode === "vnc" ? (
               <>
                 <Text color="magenta">▶ screen</Text>
-                <Text dimColor> (tab to cycle)</Text>
+                {modes.length > 1 ? <Text dimColor> (tab to cycle)</Text> : null}
+              </>
+            ) : mode === "cursor" ? (
+              <>
+                <Text color="yellow">▣ cursor</Text>
+                {modes.length > 1 ? <Text dimColor> (tab to cycle)</Text> : null}
               </>
             ) : (
               <Text color="green">• ping</Text>

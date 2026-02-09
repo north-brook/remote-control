@@ -43,6 +43,7 @@ export type PickerState = {
   list: Peer[];
   selected: number;
   mode: Mode;
+  modes?: Mode[];
   showSearch: boolean;
   filter: string;
 };
@@ -57,7 +58,24 @@ export type PickerReducerResult = {
   effect: PickerEffect | null;
 };
 
+function normalizeModes(modes: Mode[] | undefined): Mode[] {
+  const defaultModes: Mode[] = ["ssh", "vnc", "cursor"];
+  const source = modes && modes.length > 0 ? modes : defaultModes;
+  const allowed = new Set<Mode>(["ssh", "vnc", "cursor"]);
+  const out: Mode[] = [];
+  const seen = new Set<Mode>();
+  for (const mode of source) {
+    if (!allowed.has(mode) || seen.has(mode)) continue;
+    seen.add(mode);
+    out.push(mode);
+  }
+  if (out.length === 0) return ["ssh", "vnc"];
+  return out;
+}
+
 export function reducePickerInput(state: PickerState, input: string): PickerReducerResult {
+  const modes = normalizeModes(state.modes);
+
   // Ctrl+C always cancels
   if (input === "\x03") return { state, effect: { type: "cancel" } };
 
@@ -99,7 +117,9 @@ export function reducePickerInput(state: PickerState, input: string): PickerRedu
 
   // Tab
   if (input === "\t") {
-    return { state: { ...state, mode: state.mode === "ssh" ? "vnc" : "ssh" }, effect: null };
+    const currentIndex = modes.indexOf(state.mode);
+    const nextMode = currentIndex === -1 ? modes[0] : modes[(currentIndex + 1) % modes.length];
+    return { state: { ...state, mode: nextMode }, effect: null };
   }
 
   // Backspace (only in search mode)
@@ -115,6 +135,7 @@ export function reducePickerInput(state: PickerState, input: string): PickerRedu
   if (input === "\r" || input === "\n") {
     const peer = state.list[state.selected];
     if (!peer) return { state, effect: null };
+    if (!modes.includes(state.mode)) return { state: { ...state, mode: modes[0] }, effect: null };
     if (isDisabled(peer)) return { state, effect: { type: "beep" } };
     return { state, effect: { type: "select", peer, mode: state.mode } };
   }
