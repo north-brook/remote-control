@@ -11,8 +11,18 @@ import { fileURLToPath } from "node:url";
 import { render } from "ink";
 import { useEffect, useRef, useState } from "react";
 import { Authenticate } from "./authenticate.js";
+import { Directory } from "./directory.js";
 import type { Mode, Peer } from "./machines.js";
 import { Picker } from "./machines.js";
+import {
+  addRecentDirectory,
+  defaultMachineSettings,
+  normalizeSettings,
+  nowIso,
+  SETTINGS_VERSION,
+  type RcSettings,
+} from "./settings.js";
+import { buildSshDirectoryCommand } from "./ssh.js";
 
 // Load version from package.json
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -44,19 +54,11 @@ type StatusJson = Record<string, unknown> & {
   Self?: TailscalePeer;
 };
 
-type RcSettings = {
-  version: number;
-  machines: Record<string, { sshUser: string; sshPassword: string; updatedAt: string }>;
-  createdAt: string;
-  updatedAt: string;
-};
-
 const ANSI = {
   reset: "\x1b[0m",
   dim: "\x1b[2m",
 };
 
-const SETTINGS_VERSION = 1;
 const HOME_DIR = process.env.HOME || process.env.USERPROFILE || "";
 const SETTINGS_DIR = join(HOME_DIR, ".rc");
 const SETTINGS_PATH = join(SETTINGS_DIR, "settings.json");
@@ -65,25 +67,13 @@ function eprint(msg: string): void {
   process.stderr.write(`${msg}\n`);
 }
 
-function nowIso(): string {
-  return new Date().toISOString();
-}
-
 function loadSettings(): RcSettings {
   if (!existsSync(SETTINGS_PATH)) {
     return { version: SETTINGS_VERSION, machines: {}, createdAt: nowIso(), updatedAt: nowIso() };
   }
   try {
-    const raw = JSON.parse(readFileSync(SETTINGS_PATH, "utf8")) as RcSettings;
-    if (!raw || typeof raw !== "object") throw new Error("invalid");
-    if (raw.version !== SETTINGS_VERSION) throw new Error("version");
-    const machines = typeof raw.machines === "object" && raw.machines ? raw.machines : {};
-    return {
-      version: SETTINGS_VERSION,
-      machines,
-      createdAt: typeof raw.createdAt === "string" ? raw.createdAt : nowIso(),
-      updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : nowIso(),
-    };
+    const raw = JSON.parse(readFileSync(SETTINGS_PATH, "utf8")) as unknown;
+    return normalizeSettings(raw);
   } catch {
     return { version: SETTINGS_VERSION, machines: {}, createdAt: nowIso(), updatedAt: nowIso() };
   }
@@ -335,13 +325,22 @@ function openScreenSharing(host: string, user?: string, password?: string): void
   }
 }
 
-function openSsh(host: string, user?: string): void {
+function openSsh(host: string, user?: string, directory?: string): void {
   if (!host) {
     eprint("No host found for that device.");
     process.exit(1);
   }
   const target = user ? `${user}@${host}` : host;
-  Bun.spawnSync(["ssh", "-t", target], {
+  const command = buildSshDirectoryCommand(directory);
+  if (!command) {
+    Bun.spawnSync(["ssh", "-t", target], {
+      stdin: "inherit",
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    return;
+  }
+  Bun.spawnSync(["ssh", "-t", target, command], {
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit",
@@ -360,9 +359,11 @@ function ping(host: string): void {
 // Main App Component - Single render, state-driven pages
 // ─────────────────────────────────────────────────────────────────────────────
 
-type Page = { type: "picker" } | { type: "auth"; peer: Peer; mode: Mode };
+type Page = { type: "picker" } | { type: "auth"; peer: Peer; mode: Mode } | { type: "directory"; peer: Peer; user: string };
 
-type ExitResult = { type: "cancel" } | { type: "action"; peer: Peer; mode: Mode; user?: string; password?: string };
+type ExitResult =
+  | { type: "cancel" }
+  | { type: "action"; peer: Peer; mode: Mode; user?: string; password?: string; directory?: string };
 
 type AppProps = {
   peers: Peer[];
@@ -406,7 +407,7 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
       }
 
       if (entry?.sshUser && testSshKeyAuth(peer.shortName, entry.sshUser)) {
-        onExit({ type: "action", peer, mode, user: entry.sshUser });
+        setPage({ type: "directory", peer, user: entry.sshUser });
         return;
       }
     }
@@ -438,13 +439,55 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
     // Store credentials (password stored for VNC use)
     const settings = loadSettings();
     const key = machineKey(peer);
-    settings.machines[key] = { sshUser: user, sshPassword: password, updatedAt: nowIso() };
+    const existing = settings.machines[key] ?? defaultMachineSettings();
+    settings.machines[key] = {
+      ...existing,
+      sshUser: user,
+      sshPassword: password,
+      updatedAt: nowIso(),
+    };
     saveSettings(settings);
+
+    if (mode === "ssh") {
+      setPage({ type: "directory", peer, user });
+      return;
+    }
 
     onExit({ type: "action", peer, mode, user, password });
   };
 
   const handleAuthBack = () => {
+    setPage({ type: "picker" });
+  };
+
+  const handleDirectorySubmit = (directory: string) => {
+    if (page.type !== "directory") return;
+    const { peer, user } = page;
+    const trimmed = directory.trim();
+
+    if (trimmed) {
+      const settings = loadSettings();
+      const key = machineKey(peer);
+      const existing = settings.machines[key] ?? defaultMachineSettings();
+      settings.machines[key] = {
+        ...existing,
+        sshUser: user || existing.sshUser,
+        recentDirs: addRecentDirectory(existing.recentDirs, trimmed),
+        updatedAt: nowIso(),
+      };
+      saveSettings(settings);
+    }
+
+    onExit({
+      type: "action",
+      peer,
+      mode: "ssh",
+      user,
+      directory: trimmed,
+    });
+  };
+
+  const handleDirectoryBack = () => {
     setPage({ type: "picker" });
   };
 
@@ -472,6 +515,23 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
         existingUser={existingUser}
         onSubmit={handleAuthSubmit}
         onBack={handleAuthBack}
+        onCancel={() => onExit({ type: "cancel" })}
+      />
+    );
+  }
+
+  if (page.type === "directory") {
+    const settings = loadSettings();
+    const key = machineKey(page.peer);
+    const recentDirs = settings.machines[key]?.recentDirs ?? [];
+
+    return (
+      <Directory
+        version={VERSION}
+        peer={page.peer}
+        recentDirs={recentDirs}
+        onSubmit={handleDirectorySubmit}
+        onBack={handleDirectoryBack}
         onCancel={() => onExit({ type: "cancel" })}
       />
     );
@@ -584,13 +644,13 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  const { peer, mode, user, password } = result;
+  const { peer, mode, user, password, directory } = result;
   const host = mode === "ssh" ? peer.shortName : preferredHost(peer) || peer.ip;
 
   if (mode === "vnc") {
     openScreenSharing(host, user, password);
   } else if (mode === "ssh") {
-    openSsh(host, user);
+    openSsh(host, user, directory);
   } else {
     ping(host);
   }

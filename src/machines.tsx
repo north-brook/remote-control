@@ -2,6 +2,7 @@ import { Box, Text, useStdin } from "ink";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Header } from "./header.js";
 import { TextInput } from "./input.js";
+import { isDisabled, matchPeer, osName, reducePickerInput } from "./picker-controller.js";
 
 type Mode = "vnc" | "ssh" | "ping";
 
@@ -20,41 +21,6 @@ type Peer = {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
-}
-
-function stripPrintable(input: string): string {
-  if (!input) return "";
-  return input
-    .split("")
-    .filter((c) => c >= " " && c <= "~")
-    .join("");
-}
-
-function matchPeer(peer: Peer, needle: string): boolean {
-  if (!needle) return true;
-  const n = needle.toLowerCase();
-  return (
-    peer.shortName.toLowerCase().includes(n) ||
-    peer.name.toLowerCase().includes(n) ||
-    peer.ip.toLowerCase().includes(n) ||
-    peer.user.toLowerCase().includes(n) ||
-    peer.os.toLowerCase().includes(n)
-  );
-}
-
-function isDisabled(peer: Peer): boolean {
-  return !peer.online || peer.reachable === false;
-}
-
-function osName(os: string): string {
-  const value = os.toLowerCase();
-  if (value.includes("darwin") || value.includes("mac") || value.includes("osx")) return "macos";
-  if (value.includes("windows")) return "windows";
-  if (value.includes("linux")) return "linux";
-  if (value.includes("android")) return "android";
-  if (value.includes("ios") || value.includes("ipad")) return "ios";
-  if (value.includes("freebsd") || value.includes("openbsd") || value.includes("netbsd")) return "bsd";
-  return "";
 }
 
 type PickerProps = {
@@ -81,10 +47,12 @@ export function Picker({ version, peers, onSelect, onCancel, _onTick }: PickerPr
   const selectedRef = useRef(selected);
   const modeRef = useRef(mode);
   const showSearchRef = useRef(showSearch);
+  const filterRef = useRef(filter);
   listRef.current = list;
   selectedRef.current = selected;
   modeRef.current = mode;
   showSearchRef.current = showSearch;
+  filterRef.current = filter;
 
   useEffect(() => {
     if (selected > list.length - 1) setSelected(Math.max(0, list.length - 1));
@@ -97,96 +65,26 @@ export function Picker({ version, peers, onSelect, onCancel, _onTick }: PickerPr
 
     const handleData = (data: Buffer) => {
       const input = data.toString();
-      const currentList = listRef.current;
-      const currentSelected = selectedRef.current;
-      const currentMode = modeRef.current;
-      const currentShowSearch = showSearchRef.current;
+      const result = reducePickerInput(
+        {
+          list: listRef.current,
+          selected: selectedRef.current,
+          mode: modeRef.current,
+          showSearch: showSearchRef.current,
+          filter: filterRef.current,
+        },
+        input,
+      );
 
-      // Ctrl+C always cancels
-      if (input === "\x03") {
-        onCancel();
-        return;
-      }
+      if (result.state.selected !== selectedRef.current) setSelected(result.state.selected);
+      if (result.state.mode !== modeRef.current) setMode(result.state.mode);
+      if (result.state.showSearch !== showSearchRef.current) setShowSearch(result.state.showSearch);
+      if (result.state.filter !== filterRef.current) setFilter(result.state.filter);
 
-      // Escape: close search if open, otherwise cancel
-      if (input === "\x1b") {
-        if (currentShowSearch) {
-          setShowSearch(false);
-          setFilter("");
-          setSelected(0);
-        } else {
-          onCancel();
-        }
-        return;
-      }
-
-      // "/" opens search mode
-      if (input === "/" && !currentShowSearch) {
-        setShowSearch(true);
-        return;
-      }
-
-      // Arrow keys
-      if (input === "\x1b[A") {
-        setSelected((s) => clamp(s - 1, 0, currentList.length - 1));
-        return;
-      }
-      if (input === "\x1b[B") {
-        setSelected((s) => clamp(s + 1, 0, currentList.length - 1));
-        return;
-      }
-      if (input === "\x1b[5~") {
-        setSelected((s) => clamp(s - 5, 0, currentList.length - 1));
-        return;
-      }
-      if (input === "\x1b[6~") {
-        setSelected((s) => clamp(s + 5, 0, currentList.length - 1));
-        return;
-      }
-      if (input === "\x1b[H") {
-        setSelected(0);
-        return;
-      }
-      if (input === "\x1b[F") {
-        setSelected(Math.max(0, currentList.length - 1));
-        return;
-      }
-
-      // Tab
-      if (input === "\t") {
-        setMode((m) => (m === "ssh" ? "vnc" : "ssh"));
-        return;
-      }
-
-      // Backspace (only in search mode)
-      if (input === "\x7f" || input === "\b") {
-        if (currentShowSearch) {
-          setFilter((f) => f.slice(0, -1));
-          setSelected(0);
-        }
-        return;
-      }
-
-      // Enter
-      if (input === "\r" || input === "\n") {
-        const peer = currentList[currentSelected];
-        if (!peer) return;
-        if (isDisabled(peer)) {
-          process.stdout.write("\x07");
-          return;
-        }
-        onSelect(peer, currentMode);
-        return;
-      }
-
-      // Printable characters (only in search mode)
-      if (currentShowSearch) {
-        const printable = stripPrintable(input);
-        if (printable) {
-          setFilter((f) => f + printable);
-          setSelected(0);
-        }
-      }
+      if (!result.effect) return;
+      if (result.effect.type === "cancel") onCancel();
+      else if (result.effect.type === "beep") process.stdout.write("\x07");
+      else onSelect(result.effect.peer, result.effect.mode);
     };
 
     stdin?.on("data", handleData);

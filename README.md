@@ -8,7 +8,7 @@ Built for monitoring servers running autonomous agents—when you need to check 
 
 ## How it works
 
-`rc` connects to your [Tailscale](https://tailscale.com) network, shows all your machines in an interactive picker, and launches a connected terminal (SSH) or a virtual screen (VNC) with a single keypress. Credentials are cached so subsequent connections are instant.
+`rc` connects to your [Tailscale](https://tailscale.com) network, shows all your machines in an interactive picker, and launches a connected terminal (SSH) or a virtual screen (VNC) with a single keypress. In terminal mode, `rc` asks for an optional starting directory before connecting. Credentials are cached so subsequent connections are instant.
 
 ## Requirements
 
@@ -49,6 +49,13 @@ Options:
 - **Tab** - switch between terminal (SSH) and screen (VNC) modes
 - **/** - open search, then type to filter machines
 - **Esc** - close search (if open) or quit
+
+Directory screen (terminal mode):
+- **Type a path** - start SSH in that directory (for example `~/project`)
+- **Arrow keys** - choose a recent directory
+- **Tab** - switch between path input and recents list
+- **Enter** - connect (blank input defaults to `~`)
+- **Esc** - go back to machine picker
 
 ## Credentials
 

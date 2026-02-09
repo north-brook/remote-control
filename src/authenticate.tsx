@@ -1,16 +1,9 @@
 import { Box, Text, useStdin } from "ink";
 import { useEffect, useRef, useState } from "react";
+import { reduceAuthInput } from "./auth-controller.js";
 import { Header } from "./header.js";
 import { TextInput } from "./input.js";
 import type { Peer } from "./machines.js";
-
-function stripPrintable(input: string): string {
-  if (!input) return "";
-  return input
-    .split("")
-    .filter((c) => c >= " " && c <= "~")
-    .join("");
-}
 
 type AuthenticateProps = {
   version: string;
@@ -31,7 +24,7 @@ export function Authenticate({
 }: AuthenticateProps): JSX.Element {
   const [user, setUser] = useState(existingUser || "");
   const [password, setPassword] = useState("");
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState<0 | 1>(0);
 
   // Keep refs to avoid stale closure issues
   const activeRef = useRef(active);
@@ -48,54 +41,24 @@ export function Authenticate({
 
     const handleData = (data: Buffer) => {
       const input = data.toString();
-      const currentActive = activeRef.current;
-      const currentUser = userRef.current;
-      const currentPassword = passwordRef.current;
+      const result = reduceAuthInput(
+        {
+          active: activeRef.current,
+          user: userRef.current,
+          password: passwordRef.current,
+        },
+        input,
+      );
 
-      // Ctrl+C
-      if (input === "\x03") {
-        onCancel();
-        return;
-      }
+      if (result.state.active !== activeRef.current) setActive(result.state.active);
+      if (result.state.user !== userRef.current) setUser(result.state.user);
+      if (result.state.password !== passwordRef.current) setPassword(result.state.password);
 
-      // Escape
-      if (input === "\x1b") {
-        onBack();
-        return;
-      }
-
-      // Tab or Arrow keys to switch fields
-      if (input === "\t" || input === "\x1b[A" || input === "\x1b[B") {
-        setActive((a) => (a + 1) % 2);
-        return;
-      }
-
-      // Enter
-      if (input === "\r" || input === "\n") {
-        if (currentActive === 0) {
-          setActive(1);
-        } else {
-          if (!currentUser.trim() || !currentPassword) {
-            process.stdout.write("\x07");
-            return;
-          }
-          onSubmit(currentUser.trim(), currentPassword);
-        }
-        return;
-      }
-
-      // Backspace
-      if (input === "\x7f" || input === "\b") {
-        if (currentActive === 0) setUser((v) => v.slice(0, -1));
-        else setPassword((v) => v.slice(0, -1));
-        return;
-      }
-
-      // Printable characters (support paste)
-      const printable = stripPrintable(input);
-      if (!printable) return;
-      if (currentActive === 0) setUser((v) => v + printable);
-      else setPassword((v) => v + printable);
+      if (!result.effect) return;
+      if (result.effect.type === "cancel") onCancel();
+      else if (result.effect.type === "back") onBack();
+      else if (result.effect.type === "beep") process.stdout.write("\x07");
+      else onSubmit(result.effect.user, result.effect.password);
     };
 
     stdin?.on("data", handleData);
