@@ -377,14 +377,14 @@ function App({ peers, onExit }: AppProps): JSX.Element | null {
   // Start availability checks
   useEffect(() => {
     mountedRef.current = true;
-    startAvailabilityChecks(peersList, () => {
+    void startAvailabilityChecks(peers, () => {
       if (!mountedRef.current) return;
-      setPeersList([...peersList]);
+      setPeersList((current) => [...current]);
     });
     return () => {
       mountedRef.current = false;
     };
-  }, [peersList]);
+  }, [peers]);
 
   const handleSelect = (peer: Peer, mode: Mode) => {
     // Ping doesn't need auth
