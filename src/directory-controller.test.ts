@@ -19,12 +19,23 @@ describe("reduceDirectoryInput", () => {
     expect(reduceDirectoryInput(state, "\x1b")).toEqual({ state, effect: { type: "back" } });
   });
 
-  test("tab toggles focus only when recents exist", () => {
+  test("tab stays on input when no recents exist", () => {
     const noRecents = baseState({ active: 0, recentDirs: [] });
     expect(reduceDirectoryInput(noRecents, "\t").state.active).toBe(0);
+  });
 
-    const withRecents = baseState({ active: 0, recentDirs: ["~/a"] });
-    expect(reduceDirectoryInput(withRecents, "\t").state.active).toBe(1);
+  test("tab cycles input and each recent entry", () => {
+    const state = baseState({ active: 0, selectedRecent: 0, recentDirs: ["~/a", "~/b"] });
+    const first = reduceDirectoryInput(state, "\t");
+    expect(first.state.active).toBe(1);
+    expect(first.state.selectedRecent).toBe(0);
+
+    const second = reduceDirectoryInput(first.state, "\t");
+    expect(second.state.active).toBe(1);
+    expect(second.state.selectedRecent).toBe(1);
+
+    const third = reduceDirectoryInput(second.state, "\t");
+    expect(third.state.active).toBe(0);
   });
 
   test("arrow keys select recent and clamp bounds", () => {
@@ -50,12 +61,26 @@ describe("reduceDirectoryInput", () => {
     expect(reduceDirectoryInput(state, "\n").effect).toEqual({ type: "submit", directory: "~/project" });
   });
 
-  test("backspace edits only in input mode", () => {
+  test("backspace edits input in input mode", () => {
     const inputState = baseState({ active: 0, directory: "~/abc" });
     expect(reduceDirectoryInput(inputState, "\x7f").state.directory).toBe("~/ab");
+    expect(reduceDirectoryInput(inputState, "\b").state.directory).toBe("~/ab");
+  });
 
+  test("delete removes selected recent when recents focus is active", () => {
     const recentsState = baseState({ active: 1, directory: "~/abc", recentDirs: ["~/a"] });
-    expect(reduceDirectoryInput(recentsState, "\x7f").state.directory).toBe("~/abc");
+    expect(reduceDirectoryInput(recentsState, "\x7f").effect).toEqual({ type: "deleteRecent", directory: "~/a" });
+
+    const multipleRecents = baseState({ active: 1, selectedRecent: 1, recentDirs: ["~/a", "~/b", "~/c"] });
+    const result = reduceDirectoryInput(multipleRecents, "\x1b[3~");
+    expect(result.effect).toEqual({ type: "deleteRecent", directory: "~/b" });
+    expect(result.state.active).toBe(1);
+    expect(result.state.selectedRecent).toBe(1);
+  });
+
+  test("delete on recents no-ops when list is empty", () => {
+    const state = baseState({ active: 1, recentDirs: [] });
+    expect(reduceDirectoryInput(state, "\x7f")).toEqual({ state, effect: null });
   });
 
   test("printable input appends and moves focus to input", () => {

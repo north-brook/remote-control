@@ -115,8 +115,13 @@ export function reducePickerInput(state: PickerState, input: string): PickerRedu
     return { state: { ...state, selected: Math.max(0, state.list.length - 1) }, effect: null };
   }
 
-  // Tab
+  // Tab / Shift+Tab
   if (input === "\t") {
+    if (state.list.length === 0) return { state, effect: null };
+    const nextSelected = state.selected >= state.list.length - 1 ? 0 : state.selected + 1;
+    return { state: { ...state, selected: nextSelected }, effect: null };
+  }
+  if (input === "\x1b[Z") {
     const currentIndex = modes.indexOf(state.mode);
     const nextMode = currentIndex === -1 ? modes[0] : modes[(currentIndex + 1) % modes.length];
     return { state: { ...state, mode: nextMode }, effect: null };

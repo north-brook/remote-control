@@ -25,12 +25,14 @@ describe("normalizeMachineSettings", () => {
       sshUser: 1,
       sshPassword: null,
       recentDirs: "bad",
+      lastCursorDirectory: 123,
       updatedAt: 123,
     });
 
     expect(normalized.sshUser).toBe("");
     expect(normalized.sshPassword).toBe("");
     expect(normalized.recentDirs).toEqual([]);
+    expect(normalized.lastCursorDirectory).toBe("");
     expect(typeof normalized.updatedAt).toBe("string");
     expect(normalized.updatedAt.length).toBeGreaterThan(0);
   });
@@ -41,6 +43,8 @@ describe("normalizeSettings", () => {
     const normalized = normalizeSettings(null);
     expect(normalized.version).toBe(SETTINGS_VERSION);
     expect(normalized.machines).toEqual({});
+    expect(normalized.lastMachineKey).toBe("");
+    expect(normalized.lastMode).toBe("ssh");
   });
 
   test("returns defaults for version mismatch", () => {
@@ -50,6 +54,8 @@ describe("normalizeSettings", () => {
     });
     expect(normalized.version).toBe(SETTINGS_VERSION);
     expect(normalized.machines).toEqual({});
+    expect(normalized.lastMachineKey).toBe("");
+    expect(normalized.lastMode).toBe("ssh");
   });
 
   test("normalizes machine settings map", () => {
@@ -60,9 +66,12 @@ describe("normalizeSettings", () => {
           sshUser: "user",
           sshPassword: "pass",
           recentDirs: ["~/one", "~/one", "/tmp"],
+          lastCursorDirectory: "~/one",
           updatedAt: "2026-02-09T00:00:00.000Z",
         },
       },
+      lastMachineKey: "alpha",
+      lastMode: "cursor",
       createdAt: "2026-02-08T00:00:00.000Z",
       updatedAt: "2026-02-09T00:00:00.000Z",
     });
@@ -71,7 +80,21 @@ describe("normalizeSettings", () => {
     expect(normalized.machines.alpha?.sshUser).toBe("user");
     expect(normalized.machines.alpha?.sshPassword).toBe("pass");
     expect(normalized.machines.alpha?.recentDirs).toEqual(["~/one", "/tmp"]);
+    expect(normalized.machines.alpha?.lastCursorDirectory).toBe("~/one");
+    expect(normalized.lastMachineKey).toBe("alpha");
+    expect(normalized.lastMode).toBe("cursor");
     expect(normalized.createdAt).toBe("2026-02-08T00:00:00.000Z");
+  });
+
+  test("falls back to ssh for invalid mode", () => {
+    const normalized = normalizeSettings({
+      version: SETTINGS_VERSION,
+      machines: {},
+      lastMachineKey: "alpha",
+      lastMode: "bad",
+    });
+    expect(normalized.lastMachineKey).toBe("alpha");
+    expect(normalized.lastMode).toBe("ssh");
   });
 });
 

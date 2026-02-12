@@ -28,6 +28,8 @@ type PickerProps = {
   peers: Peer[];
   cursorAvailable: boolean;
   screenAvailable: boolean;
+  initialSelected?: number;
+  initialMode?: Mode;
   onSelect: (peer: Peer, mode: Mode) => void;
   onCancel: () => void;
   _onTick: () => void;
@@ -45,13 +47,15 @@ export function Picker({
   peers,
   cursorAvailable,
   screenAvailable,
+  initialSelected = 0,
+  initialMode = "ssh",
   onSelect,
   onCancel,
   _onTick,
 }: PickerProps): JSX.Element {
   const [filter, setFilter] = useState("");
-  const [selected, setSelected] = useState(0);
-  const [mode, setMode] = useState<Mode>("ssh");
+  const [selected, setSelected] = useState(initialSelected);
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [showSearch, setShowSearch] = useState(false);
 
   const list = useMemo(() => {
@@ -179,23 +183,23 @@ export function Picker({
             {mode === "ssh" ? (
               <>
                 <Text color="cyan">~ terminal</Text>
-                {modes.length > 1 ? <Text dimColor> (tab to cycle)</Text> : null}
+                {modes.length > 1 ? <Text dimColor> (shift+tab to cycle)</Text> : null}
               </>
             ) : mode === "vnc" ? (
               <>
                 <Text color="magenta">▶ screen</Text>
-                {modes.length > 1 ? <Text dimColor> (tab to cycle)</Text> : null}
+                {modes.length > 1 ? <Text dimColor> (shift+tab to cycle)</Text> : null}
               </>
             ) : mode === "cursor" ? (
               <>
                 <Text color="yellow">▣ cursor</Text>
-                {modes.length > 1 ? <Text dimColor> (tab to cycle)</Text> : null}
+                {modes.length > 1 ? <Text dimColor> (shift+tab to cycle)</Text> : null}
               </>
             ) : (
               <Text color="green">• ping</Text>
             )}
           </Text>
-          {!showSearch ? <Text dimColor>/ to search</Text> : null}
+          {!showSearch ? <Text dimColor>tab next machine · / to search</Text> : null}
         </Box>
       </Box>
     </Box>

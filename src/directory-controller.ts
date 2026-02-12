@@ -20,6 +20,7 @@ export type DirectoryState = {
 export type DirectoryEffect =
   | { type: "cancel" }
   | { type: "back" }
+  | { type: "deleteRecent"; directory: string }
   | { type: "submit"; directory: string };
 
 export type DirectoryReducerResult = {
@@ -40,9 +41,18 @@ export function reduceDirectoryInput(state: DirectoryState, input: string): Dire
 
   // Tab
   if (input === "\t") {
-    if (state.recentDirs.length === 0) return { state, effect: null };
+    if (state.recentDirs.length === 0) return { state: { ...state, active: 0 }, effect: null };
+    const positions = state.recentDirs.length + 1; // input + each recent row
+    const currentPosition = state.active === 0 ? 0 : state.selectedRecent + 1;
+    const nextPosition = (currentPosition + 1) % positions;
+    if (nextPosition === 0) {
+      return {
+        state: { ...state, active: 0 },
+        effect: null,
+      };
+    }
     return {
-      state: { ...state, active: state.active === 0 ? 1 : 0 },
+      state: { ...state, active: 1, selectedRecent: nextPosition - 1 },
       effect: null,
     };
   }
@@ -75,15 +85,25 @@ export function reduceDirectoryInput(state: DirectoryState, input: string): Dire
     };
   }
 
-  // Backspace (input only)
-  if (input === "\x7f" || input === "\b") {
+  // Backspace/Delete
+  if (input === "\x7f" || input === "\b" || input === "\x1b[3~") {
     if (state.active === 0) {
       return {
         state: { ...state, directory: state.directory.slice(0, -1) },
         effect: null,
       };
     }
-    return { state, effect: null };
+    const selectedRecent = state.recentDirs[state.selectedRecent];
+    if (!selectedRecent) return { state, effect: null };
+    const nextRecentCount = state.recentDirs.length - 1;
+    return {
+      state: {
+        ...state,
+        active: nextRecentCount > 0 ? 1 : 0,
+        selectedRecent: clamp(state.selectedRecent, 0, Math.max(0, nextRecentCount - 1)),
+      },
+      effect: { type: "deleteRecent", directory: selectedRecent },
+    };
   }
 
   // Printable characters (support paste)

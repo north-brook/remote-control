@@ -69,13 +69,27 @@ function eprint(msg: string): void {
 
 function loadSettings(): RcSettings {
   if (!existsSync(SETTINGS_PATH)) {
-    return { version: SETTINGS_VERSION, machines: {}, createdAt: nowIso(), updatedAt: nowIso() };
+    return {
+      version: SETTINGS_VERSION,
+      machines: {},
+      lastMachineKey: "",
+      lastMode: "ssh",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
   }
   try {
     const raw = JSON.parse(readFileSync(SETTINGS_PATH, "utf8")) as unknown;
     return normalizeSettings(raw);
   } catch {
-    return { version: SETTINGS_VERSION, machines: {}, createdAt: nowIso(), updatedAt: nowIso() };
+    return {
+      version: SETTINGS_VERSION,
+      machines: {},
+      lastMachineKey: "",
+      lastMode: "ssh",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
   }
 }
 
@@ -201,6 +215,17 @@ function sortPeersByRecency(peers: Peer[], settings: RcSettings): Peer[] {
   return out;
 }
 
+function initialSelectedIndex(peers: Peer[], settings: RcSettings): number {
+  if (peers.length === 0) return 0;
+  if (!settings.lastMachineKey) return 0;
+  const index = peers.findIndex((peer) => machineKey(peer) === settings.lastMachineKey);
+  return index >= 0 ? index : 0;
+}
+
+function initialMode(settings: RcSettings): Mode {
+  return settings.lastMode || "ssh";
+}
+
 function markMachineUsed(peer: Peer, mode: Mode, user?: string, password?: string, directory?: string): void {
   if (mode === "ping") return;
   const settings = loadSettings();
@@ -212,8 +237,11 @@ function markMachineUsed(peer: Peer, mode: Mode, user?: string, password?: strin
     sshUser: user || existing.sshUser,
     sshPassword: password || existing.sshPassword,
     recentDirs: trimmedDirectory ? addRecentDirectory(existing.recentDirs, trimmedDirectory) : existing.recentDirs,
+    lastCursorDirectory: mode === "cursor" ? (trimmedDirectory || "~") : existing.lastCursorDirectory,
     updatedAt: nowIso(),
   };
+  settings.lastMachineKey = key;
+  settings.lastMode = mode;
   saveSettings(settings);
 }
 
@@ -438,11 +466,10 @@ function ping(host: string): void {
 // Main App Component - Single render, state-driven pages
 // ─────────────────────────────────────────────────────────────────────────────
 
-type DirectoryMode = Extract<Mode, "ssh" | "cursor">;
 type Page =
   | { type: "picker" }
   | { type: "auth"; peer: Peer; mode: Mode }
-  | { type: "directory"; peer: Peer; user: string; mode: DirectoryMode };
+  | { type: "directory"; peer: Peer; user: string };
 
 type ExitResult =
   | { type: "cancel" }
@@ -452,10 +479,12 @@ type AppProps = {
   peers: Peer[];
   cursorAvailable: boolean;
   screenAvailable: boolean;
+  initialSelected: number;
+  initialMode: Mode;
   onExit: (result: ExitResult) => void;
 };
 
-function App({ peers, cursorAvailable, screenAvailable, onExit }: AppProps): JSX.Element | null {
+function App({ peers, cursorAvailable, screenAvailable, initialSelected, initialMode, onExit }: AppProps): JSX.Element | null {
   const [page, setPage] = useState<Page>({ type: "picker" });
   const [peersList, setPeersList] = useState(peers);
   const mountedRef = useRef(true);
@@ -496,7 +525,11 @@ function App({ peers, cursorAvailable, screenAvailable, onExit }: AppProps): JSX
       }
 
       if (entry?.sshUser && testSshKeyAuth(peer.shortName, entry.sshUser)) {
-        setPage({ type: "directory", peer, user: entry.sshUser, mode });
+        if (mode === "cursor") {
+          setPage({ type: "directory", peer, user: entry.sshUser });
+          return;
+        }
+        onExit({ type: "action", peer, mode, user: entry.sshUser });
         return;
       }
     }
@@ -537,12 +570,12 @@ function App({ peers, cursorAvailable, screenAvailable, onExit }: AppProps): JSX
     };
     saveSettings(settings);
 
-    if (mode === "ssh" || mode === "cursor") {
-      setPage({ type: "directory", peer, user, mode });
+    if (mode === "cursor") {
+      setPage({ type: "directory", peer, user });
       return;
     }
 
-    onExit({ type: "action", peer, mode, user, password });
+    onExit({ type: "action", peer, mode, user, password: mode === "vnc" ? password : undefined });
   };
 
   const handleAuthBack = () => {
@@ -551,7 +584,7 @@ function App({ peers, cursorAvailable, screenAvailable, onExit }: AppProps): JSX
 
   const handleDirectorySubmit = (directory: string) => {
     if (page.type !== "directory") return;
-    const { peer, user, mode } = page;
+    const { peer, user } = page;
     const trimmed = directory.trim();
 
     if (trimmed) {
@@ -570,10 +603,34 @@ function App({ peers, cursorAvailable, screenAvailable, onExit }: AppProps): JSX
     onExit({
       type: "action",
       peer,
-      mode,
+      mode: "cursor",
       user,
       directory: trimmed,
     });
+  };
+
+  const handleDeleteRecentDirectory = (directory: string) => {
+    if (page.type !== "directory") return;
+    const { peer, user } = page;
+    const trimmed = directory.trim();
+    if (!trimmed) return;
+
+    const settings = loadSettings();
+    const key = machineKey(peer);
+    const existing = settings.machines[key] ?? defaultMachineSettings();
+    const nextRecentDirs = existing.recentDirs.filter((item) => item !== trimmed);
+    if (nextRecentDirs.length === existing.recentDirs.length) return;
+
+    settings.machines[key] = {
+      ...existing,
+      sshUser: user || existing.sshUser,
+      recentDirs: nextRecentDirs,
+      updatedAt: nowIso(),
+    };
+    saveSettings(settings);
+
+    // Force re-read of recents from settings on the directory page.
+    setPage({ type: "directory", peer, user });
   };
 
   const handleDirectoryBack = () => {
@@ -587,6 +644,8 @@ function App({ peers, cursorAvailable, screenAvailable, onExit }: AppProps): JSX
         peers={peersList}
         cursorAvailable={cursorAvailable}
         screenAvailable={screenAvailable}
+        initialSelected={initialSelected}
+        initialMode={initialMode}
         onSelect={handleSelect}
         onCancel={() => onExit({ type: "cancel" })}
         _onTick={() => setPeersList([...peersList])}
@@ -614,15 +673,18 @@ function App({ peers, cursorAvailable, screenAvailable, onExit }: AppProps): JSX
   if (page.type === "directory") {
     const settings = loadSettings();
     const key = machineKey(page.peer);
-    const recentDirs = settings.machines[key]?.recentDirs ?? [];
+    const entry = settings.machines[key];
+    const recentDirs = entry?.recentDirs ?? [];
+    const initialDirectory = entry?.lastCursorDirectory || recentDirs[0] || "";
 
     return (
       <Directory
         version={VERSION}
         peer={page.peer}
-        mode={page.mode}
         recentDirs={recentDirs}
+        initialDirectory={initialDirectory}
         onSubmit={handleDirectorySubmit}
+        onDeleteRecent={handleDeleteRecentDirectory}
         onBack={handleDirectoryBack}
         onCancel={() => onExit({ type: "cancel" })}
       />
@@ -698,6 +760,8 @@ async function main(): Promise<number> {
   const status = runTailscaleStatus();
   const settings = loadSettings();
   const peers = sortPeersByRecency(extractPeers(status, includeOffline), settings);
+  const pickerInitialSelected = initialSelectedIndex(peers, settings);
+  const pickerInitialMode = initialMode(settings);
   const cursorAvailable = hasCommand("cursor");
   const screenAvailable = process.platform === "darwin";
   if (peers.length === 0) {
@@ -727,6 +791,8 @@ async function main(): Promise<number> {
         peers={peers}
         cursorAvailable={cursorAvailable}
         screenAvailable={screenAvailable}
+        initialSelected={pickerInitialSelected}
+        initialMode={pickerInitialMode}
         onExit={(result) => {
           app.unmount();
           resolve(result);

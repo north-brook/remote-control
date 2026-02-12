@@ -2,12 +2,15 @@ export type MachineSettings = {
   sshUser: string;
   sshPassword: string;
   recentDirs: string[];
+  lastCursorDirectory: string;
   updatedAt: string;
 };
 
 export type RcSettings = {
   version: number;
   machines: Record<string, MachineSettings>;
+  lastMachineKey: string;
+  lastMode: "ssh" | "vnc" | "cursor" | "ping";
   createdAt: string;
   updatedAt: string;
 };
@@ -39,6 +42,7 @@ export function defaultMachineSettings(): MachineSettings {
     sshUser: "",
     sshPassword: "",
     recentDirs: [],
+    lastCursorDirectory: "",
     updatedAt: nowIso(),
   };
 }
@@ -50,12 +54,20 @@ export function normalizeMachineSettings(value: unknown): MachineSettings {
     sshUser: typeof entry.sshUser === "string" ? entry.sshUser : defaults.sshUser,
     sshPassword: typeof entry.sshPassword === "string" ? entry.sshPassword : defaults.sshPassword,
     recentDirs: normalizeRecentDirs(entry.recentDirs),
+    lastCursorDirectory: typeof entry.lastCursorDirectory === "string" ? entry.lastCursorDirectory : defaults.lastCursorDirectory,
     updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : defaults.updatedAt,
   };
 }
 
 export function normalizeSettings(raw: unknown): RcSettings {
-  const defaults = { version: SETTINGS_VERSION, machines: {}, createdAt: nowIso(), updatedAt: nowIso() };
+  const defaults = {
+    version: SETTINGS_VERSION,
+    machines: {},
+    lastMachineKey: "",
+    lastMode: "ssh" as const,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
   if (!raw || typeof raw !== "object") return defaults;
 
   const obj = raw as Record<string, unknown>;
@@ -70,6 +82,8 @@ export function normalizeSettings(raw: unknown): RcSettings {
   return {
     version: SETTINGS_VERSION,
     machines,
+    lastMachineKey: typeof obj.lastMachineKey === "string" ? obj.lastMachineKey : defaults.lastMachineKey,
+    lastMode: obj.lastMode === "vnc" || obj.lastMode === "cursor" || obj.lastMode === "ping" ? obj.lastMode : "ssh",
     createdAt: typeof obj.createdAt === "string" ? obj.createdAt : nowIso(),
     updatedAt: typeof obj.updatedAt === "string" ? obj.updatedAt : nowIso(),
   };

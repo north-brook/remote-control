@@ -8,7 +8,7 @@ Built for monitoring servers running autonomous agents—when you need to check 
 
 ## How it works
 
-`rc` connects to your [Tailscale](https://tailscale.com) network, shows all your machines in an interactive picker, and launches a connected terminal (SSH), virtual screen (VNC), or Cursor Remote SSH session with a single keypress. In terminal/cursor modes, `rc` asks for an optional starting directory before connecting. Credentials are cached so subsequent connections are instant.
+`rc` connects to your [Tailscale](https://tailscale.com) network, shows all your machines in an interactive picker, and launches a connected terminal (SSH), virtual screen (VNC), or Cursor Remote SSH session with a single keypress. In Cursor mode, `rc` asks for an optional starting directory before connecting. Terminal mode opens directly in `~`. Credentials are cached so subsequent connections are instant.
 
 ## Requirements
 
@@ -51,10 +51,11 @@ Options:
 - **/** - open search, then type to filter machines
 - **Esc** - close search (if open) or quit
 
-Directory screen (terminal/cursor mode):
-- **Type a path** - start SSH/Cursor in that directory (for example `~/project`)
+Directory screen (cursor mode):
+- **Type a path** - start Cursor in that directory (for example `~/project`)
 - **Arrow keys** - choose a recent directory
 - **Tab** - switch between path input and recents list
+- **Delete/Backspace** - remove the selected recent directory
 - **Enter** - connect (blank input defaults to `~`)
 - **Esc** - go back to machine picker
 

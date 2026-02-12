@@ -3,14 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import { reduceDirectoryInput } from "./directory-controller.js";
 import { Header } from "./header.js";
 import { TextInput } from "./input.js";
-import type { Mode, Peer } from "./machines.js";
+import type { Peer } from "./machines.js";
 
 type DirectoryProps = {
   version: string;
   peer: Peer;
-  mode: Extract<Mode, "ssh" | "cursor">;
   recentDirs: string[];
+  initialDirectory: string;
   onSubmit: (directory: string) => void;
+  onDeleteRecent: (directory: string) => void;
   onBack: () => void;
   onCancel: () => void;
 };
@@ -18,13 +19,14 @@ type DirectoryProps = {
 export function Directory({
   version,
   peer,
-  mode,
   recentDirs,
+  initialDirectory,
   onSubmit,
+  onDeleteRecent,
   onBack,
   onCancel,
 }: DirectoryProps): JSX.Element {
-  const [directory, setDirectory] = useState("");
+  const [directory, setDirectory] = useState(initialDirectory);
   const [active, setActive] = useState<0 | 1>(0); // 0: input, 1: recents
   const [selectedRecent, setSelectedRecent] = useState(0);
 
@@ -66,6 +68,7 @@ export function Directory({
       if (!result.effect) return;
       if (result.effect.type === "cancel") onCancel();
       else if (result.effect.type === "back") onBack();
+      else if (result.effect.type === "deleteRecent") onDeleteRecent(result.effect.directory);
       else onSubmit(result.effect.directory);
     };
 
@@ -73,13 +76,13 @@ export function Directory({
     return () => {
       stdin?.off("data", handleData);
     };
-  }, [stdin, setRawMode, onBack, onCancel, onSubmit, recentDirs]);
+  }, [stdin, setRawMode, onBack, onCancel, onDeleteRecent, onSubmit, recentDirs]);
 
   return (
     <Box flexDirection="column" paddingY={1}>
       <Header version={version}>
         <Text>
-          <Text dimColor>choose {mode === "ssh" ? "terminal" : "cursor"} directory for </Text>
+          <Text dimColor>choose cursor directory for </Text>
           <Text>{peer.shortName}</Text>
         </Text>
       </Header>
@@ -106,7 +109,7 @@ export function Directory({
 
       <Box paddingLeft={2} paddingRight={2}>
         <Box borderStyle="single" borderTop borderBottom={false} borderLeft={false} borderRight={false} borderDimColor>
-          <Text dimColor>esc to go back · tab to switch · enter to continue</Text>
+          <Text dimColor>esc to go back · tab to cycle entries · delete to remove recent · enter to continue</Text>
         </Box>
       </Box>
     </Box>
