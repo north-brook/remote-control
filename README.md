@@ -30,7 +30,7 @@ Enable these on each machine you want to connect to:
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/brycedbjork/rc/main/install.sh | bash
+curl -fsSL https://remotecontrol.sh/install | bash
 ```
 
 ## Usage
@@ -47,7 +47,8 @@ Options:
 
 - **Arrow keys** - navigate the machine list
 - **Enter** - connect to selected machine
-- **Tab** - switch between available modes (terminal, screen, cursor)
+- **Tab** - cycle through machines
+- **Shift+Tab** - switch between available modes (terminal, screen, cursor)
 - **/** - open search, then type to filter machines
 - **Esc** - close search (if open) or quit
 

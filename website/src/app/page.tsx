@@ -123,7 +123,8 @@ export default function Home() {
           {[
             { keys: "↑ ↓", action: "Navigate machines" },
             { keys: "Enter", action: "Connect" },
-            { keys: "Tab", action: "Switch mode (terminal / screen / cursor)" },
+            { keys: "Tab", action: "Cycle through machines" },
+            { keys: "⇧Tab", action: "Switch mode (terminal / screen / cursor)" },
             { keys: "/", action: "Search" },
             { keys: "Esc", action: "Close search or quit" },
           ].map((s) => (
