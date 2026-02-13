@@ -2,3 +2,5 @@
 node_modules/
 bun.lockb
 .rc/
+website/.next/
+website/node_modules/
