@@ -28,7 +28,7 @@ function Header() {
 function CopyButton() {
   const [copied, setCopied] = useState(false);
   const command = "curl -fsSL https://remotecontrol.sh/install | bash";
-  const displayCommand = "curl -fsSL remotecontrol.sh/install | bash";
+  const displayCommand = "curl -fsSL https://remotecontrol.sh/install | bash";
 
   return (
     <div className="inline-flex w-full max-w-2xl">
