@@ -85,9 +85,11 @@ export default function Home() {
           <h1 className="text-5xl sm:text-7xl font-bold tracking-tight">
             rc
           </h1>
-          <p className="mt-4 text-lg sm:text-xl text-zinc-400 max-w-xl mx-auto leading-relaxed">
-            Instant terminal, screen sharing, and Cursor Remote SSH access to
-            your Tailscale machines.
+          <p className="mt-4 text-xl sm:text-2xl text-zinc-400 leading-relaxed">
+            Check on your machines in seconds.
+          </p>
+          <p className="mt-3 text-sm sm:text-base text-zinc-500 max-w-lg mx-auto leading-relaxed">
+            One command to SSH, screen share, or open Cursor on any machine in your Tailscale network.
           </p>
         </div>
 
@@ -110,54 +112,63 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Why */}
+      <section className="max-w-2xl mx-auto px-6 pb-24 text-center">
+        <p className="text-lg sm:text-xl text-zinc-400 leading-relaxed">
+          You&apos;ve got agents running on servers, builds happening on remote machines, services spread across your network. When something needs your attention, you shouldn&apos;t have to remember hostnames, find SSH keys, or configure VNC.
+        </p>
+        <p className="mt-4 text-lg sm:text-xl text-zinc-300 font-medium">
+          Just type <code className="font-mono">rc</code>.
+        </p>
+      </section>
+
       {/* Features */}
       <section className="max-w-5xl mx-auto px-6 pb-24">
         <h2 className="text-2xl sm:text-3xl font-semibold text-center mb-12">
-          Everything you need
+          Three ways to connect
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[
             {
-              title: "Terminal (SSH)",
-              desc: "Open an SSH session to any machine. Keys are generated and copied automatically.",
+              badge: ">_",
+              title: "Terminal",
+              desc: "SSH into any machine. Keys are generated and distributed automatically — just pick a machine and you're in.",
             },
             {
-              title: "Screen Sharing (VNC)",
-              desc: "View and control remote screens via macOS Screen Sharing — one keypress away.",
+              badge: "🖥",
+              title: "Screen",
+              desc: "See and control remote desktops via macOS Screen Sharing. One keypress to connect, passwords saved locally.",
             },
             {
-              title: "Cursor Remote SSH",
-              desc: "Launch Cursor with Remote SSH into any machine. Pick a starting directory or recent project.",
-            },
-            {
-              title: "Credential Caching",
-              desc: "Enter your credentials once. SSH keys are set up automatically, VNC passwords are saved locally.",
-            },
-            {
-              title: "Auto Updates",
-              desc: "rc updates itself. Always on the latest version without manual intervention.",
-            },
-            {
-              title: "Tailscale Powered",
-              desc: "Uses your Tailscale network to discover and connect to machines. Zero config networking.",
+              badge: "{ }",
+              title: "Cursor",
+              desc: "Launch Cursor with Remote SSH. Pick a starting directory or recent project and start coding immediately.",
             },
           ].map((f) => (
             <div
               key={f.title}
-              className="rounded-xl border border-white/10 bg-white/[0.02] p-6 hover:bg-white/[0.04] transition-colors"
+              className="rounded-xl border border-white/10 bg-white/[0.02] p-8 hover:bg-white/[0.04] transition-colors"
             >
+              <span className="inline-block mb-3 font-mono text-xs text-zinc-500 bg-white/10 rounded-md px-2 py-1">{f.badge}</span>
               <h3 className="font-semibold text-lg mb-2">{f.title}</h3>
               <p className="text-sm text-zinc-400 leading-relaxed">{f.desc}</p>
             </div>
           ))}
         </div>
+        <div className="mt-8 flex flex-wrap justify-center gap-x-8 gap-y-3 text-sm text-zinc-500">
+          <span>✦ Auto-updating</span>
+          <span>✦ Credential caching</span>
+          <span>✦ Tailscale-powered discovery</span>
+          <span>✦ Zero config networking</span>
+        </div>
       </section>
 
       {/* Keyboard Shortcuts */}
       <section className="max-w-3xl mx-auto px-6 pb-24">
-        <h2 className="text-2xl sm:text-3xl font-semibold text-center mb-12">
-          Keyboard driven
+        <h2 className="text-2xl sm:text-3xl font-semibold text-center mb-2">
+          Keyboard-first
         </h2>
+        <p className="text-sm text-zinc-500 text-center mb-12">Every action is a keypress away.</p>
         <div className="rounded-xl border border-white/10 bg-white/[0.02] overflow-hidden divide-y divide-white/5">
           {[
             { keys: "↑ ↓", action: "Navigate machines" },
@@ -229,7 +240,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-8 text-center">
+      <footer className="border-t border-white/10 py-8 text-center space-x-6">
         <a
           href="https://github.com/north-brook/remote-control"
           target="_blank"
@@ -237,6 +248,14 @@ export default function Home() {
           className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
         >
           GitHub →
+        </a>
+        <a
+          href="https://northbrook.io"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+        >
+          North Brook →
         </a>
       </footer>
     </main>
