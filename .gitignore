@@ -5,3 +5,4 @@ bun.lockb
 website/.next/
 website/node_modules/
 website/.vercel
+.vercel
