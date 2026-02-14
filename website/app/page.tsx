@@ -8,10 +8,10 @@ function CopyButton() {
   const displayCommand = "curl -fsSL https://remotecontrol.sh/install | bash";
 
   return (
-    <div className="inline-flex w-full max-w-2xl">
-      <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/5 px-5 py-4 font-mono text-sm sm:text-base w-full">
-        <span className="text-zinc-500 select-none">$</span>
-        <code className="flex-1 text-zinc-200 overflow-x-auto whitespace-nowrap">
+    <div className="inline-flex w-full max-w-3xl">
+      <div className="relative flex items-center rounded-lg border border-white/10 bg-white/5 px-5 py-4 font-mono text-sm sm:text-base w-full">
+        <span className="text-zinc-500 select-none mr-3">$</span>
+        <code className="text-zinc-200 overflow-x-auto whitespace-nowrap pr-14">
           {displayCommand}
         </code>
         <button
@@ -21,7 +21,7 @@ function CopyButton() {
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
           }}
-          className="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-all cursor-pointer bg-white/10 hover:bg-white/20 text-zinc-300"
+          className="absolute right-4 shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-all cursor-pointer bg-white/10 hover:bg-white/20 text-zinc-300"
         >
           {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
         </button>
