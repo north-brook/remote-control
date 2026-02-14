@@ -103,10 +103,32 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function parseArgs(): { includeOffline: boolean } {
+function parseArgs(): { includeOffline: boolean; demo: boolean } {
   const argv = process.argv.slice(2);
   const includeOffline = argv.includes("--all");
-  return { includeOffline };
+  const demo = argv.includes("--demo");
+  return { includeOffline, demo };
+}
+
+function demoPeers(): Peer[] {
+  const machines = [
+    { shortName: "gpu-server", os: "linux", ip: "100.64.0.1" },
+    { shortName: "staging-01", os: "linux", ip: "100.64.0.2" },
+    { shortName: "dev-macbook", os: "macOS", ip: "100.64.0.3" },
+    { shortName: "prod-api", os: "linux", ip: "100.64.0.4" },
+  ];
+  return machines.map((m, i) => ({
+    idx: i + 1,
+    id: m.shortName,
+    name: `${m.shortName}.tail1234.ts.net`,
+    shortName: m.shortName,
+    ip: m.ip,
+    user: "demo@example.com",
+    os: m.os,
+    online: true,
+    selfPeer: false,
+    reachable: true,
+  }));
 }
 
 function runTailscaleStatus(): StatusJson {
@@ -756,10 +778,11 @@ async function promptFallback(peers: Peer[]): Promise<Peer | null> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<number> {
-  const { includeOffline } = parseArgs();
-  const status = runTailscaleStatus();
+  const { includeOffline, demo } = parseArgs();
   const settings = loadSettings();
-  const peers = sortPeersByRecency(extractPeers(status, includeOffline), settings);
+  const peers = demo
+    ? demoPeers()
+    : sortPeersByRecency(extractPeers(runTailscaleStatus(), includeOffline), settings);
   const pickerInitialSelected = initialSelectedIndex(peers, settings);
   const pickerInitialMode = initialMode(settings);
   const cursorAvailable = hasCommand("cursor");
@@ -808,6 +831,12 @@ async function main(): Promise<number> {
   }
 
   const { peer, mode, user, password, directory } = result;
+
+  if (demo) {
+    // Demo mode: exit cleanly without connecting
+    return 0;
+  }
+
   markMachineUsed(peer, mode, user, password, directory);
   const host = mode === "ssh" || mode === "cursor" ? peer.shortName : preferredHost(peer) || peer.ip;
 
