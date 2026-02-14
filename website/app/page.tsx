@@ -2,29 +2,62 @@
 
 import { useState } from "react";
 import { Terminal, Monitor, Code, Sparkle, Copy, Check } from "lucide-react";
-function CopyButton() {
+function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const command = "curl -fsSL https://remotecontrol.sh/install | bash";
-  const displayCommand = "curl -fsSL https://remotecontrol.sh/install | bash";
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-white/10 bg-white/5 hover:border-emerald-400/50 hover:text-emerald-400 transition-colors cursor-pointer text-zinc-400"
+    >
+      {copied ? (
+        <>
+          <Check className="w-3.5 h-3.5" />
+          Copied!
+        </>
+      ) : (
+        <>
+          <Copy className="w-3.5 h-3.5" />
+          Copy
+        </>
+      )}
+    </button>
+  );
+}
+
+function InstallWidget() {
+  const [tab, setTab] = useState<"curl" | "git">("curl");
+  const commands = {
+    curl: "curl -fsSL https://remotecontrol.sh/install | bash",
+    git: "git clone https://github.com/north-brook/remote-control \\\n  && cd remote-control \\\n  && bun install && bun link",
+  };
 
   return (
-    <div className="inline-flex w-full max-w-3xl">
-      <div className="relative flex items-center rounded-lg border border-white/10 bg-white/5 px-5 py-4 font-mono text-sm sm:text-base w-full">
-        <span className="text-zinc-500 select-none mr-3">$</span>
-        <code className="text-zinc-200 overflow-x-auto whitespace-nowrap pr-14">
-          {displayCommand}
-        </code>
-        <button
-          type="button"
-          onClick={() => {
-            navigator.clipboard.writeText(command);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }}
-          className="absolute right-4 shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition-all cursor-pointer bg-white/10 hover:bg-white/20 text-zinc-300"
-        >
-          {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-        </button>
+    <div className="w-full max-w-2xl mx-auto">
+      <div className="flex gap-0 border border-white/10 rounded-t-lg overflow-hidden bg-white/5">
+        {(["curl", "git"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-mono cursor-pointer transition-colors ${
+              tab === t
+                ? "bg-white/10 text-zinc-200"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            {t === "curl" ? "One-liner" : "Manual"}
+          </button>
+        ))}
+      </div>
+      <div className="relative flex items-start bg-white/5 border border-t-0 border-white/10 rounded-b-lg px-5 py-4 font-mono text-sm sm:text-base min-w-0 w-full">
+        <span className="text-zinc-500 shrink-0 mr-3 leading-relaxed">$</span>
+        <pre className="select-all whitespace-pre pr-20 leading-relaxed text-zinc-200">{commands[tab]}</pre>
+        <div className="absolute right-3 top-3 sm:top-4">
+          <CopyButton text={commands[tab]} />
+        </div>
       </div>
     </div>
   );
@@ -66,7 +99,7 @@ export default function Home() {
 
           {/* Install */}
           <div className="flex justify-center">
-            <CopyButton />
+            <InstallWidget />
           </div>
 
           {/* Meta line */}
