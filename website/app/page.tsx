@@ -225,56 +225,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Requirements */}
-        <section className="max-w-2xl mx-auto px-6 pb-24">
-          <h2 className="text-2xl sm:text-3xl font-semibold text-center mb-12">
-            Requirements
-          </h2>
-          <div className="space-y-4">
-            {[
-              {
-                name: "Tailscale",
-                note: "Installed and logged in on all machines",
-                required: true,
-              },
-              {
-                name: "Remote Login (SSH)",
-                note: "Enabled on target machines",
-                required: true,
-              },
-              {
-                name: "Screen Sharing (VNC)",
-                note: "macOS only — enable in System Settings → Sharing",
-                required: false,
-              },
-              {
-                name: "Cursor",
-                note: "Optional — needed for Cursor Remote SSH mode",
-                required: false,
-              },
-            ].map((r) => (
-              <div
-                key={r.name}
-                className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-5 py-4"
-              >
-                <span
-                  className={`mt-0.5 text-xs font-mono px-2 py-0.5 rounded-full ${
-                    r.required
-                      ? "bg-white/10 text-zinc-300"
-                      : "bg-white/5 text-zinc-500"
-                  }`}
-                >
-                  {r.required ? "required" : "optional"}
-                </span>
-                <div>
-                  <p className="font-medium text-sm">{r.name}</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">{r.note}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
       </main>
 
       {/* Footer */}
