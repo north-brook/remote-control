@@ -14,14 +14,31 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Remote Control — Check on your machines in seconds",
+  title: "Remote Control — Check on Your Machines in Seconds",
   description:
-    "SSH, screen share, or open Cursor on any Tailscale machine. One command, zero config.",
+    "SSH, screen share, or open Cursor on any Tailscale machine. One command, zero config. Built for monitoring servers running autonomous agents.",
+  metadataBase: new URL("https://remotecontrol.sh"),
+  keywords: [
+    "remote control",
+    "tailscale ssh",
+    "screen sharing",
+    "remote terminal",
+    "server monitoring",
+    "ai agent monitoring",
+  ],
   openGraph: {
-    title: "Remote Control — Check on your machines in seconds",
+    title: "Remote Control — Check on Your Machines in Seconds",
     description:
       "SSH, screen share, or open Cursor on any Tailscale machine. One command, zero config.",
     url: "https://remotecontrol.sh",
+    siteName: "Remote Control",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Remote Control — Check on Your Machines in Seconds",
+    description:
+      "SSH, screen share, or open Cursor on any Tailscale machine. One command, zero config.",
   },
 };
 
