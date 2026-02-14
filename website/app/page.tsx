@@ -54,7 +54,7 @@ function InstallWidget() {
       </div>
       <div className="relative flex items-start bg-white/5 border border-t-0 border-white/10 rounded-b-lg px-5 py-4 font-mono text-sm sm:text-base min-w-0 w-full">
         <span className="text-zinc-500 shrink-0 mr-3 leading-relaxed">$</span>
-        <pre className="select-all whitespace-pre pr-20 leading-relaxed text-zinc-200">{commands[tab]}</pre>
+        <pre className="select-all whitespace-pre pr-20 leading-relaxed text-zinc-200 text-left">{commands[tab]}</pre>
         <div className="absolute right-3 top-3 sm:top-4">
           <CopyButton text={commands[tab]} />
         </div>
