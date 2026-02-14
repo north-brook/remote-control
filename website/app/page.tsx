@@ -36,7 +36,7 @@ function InstallWidget() {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full max-w-3xl mx-auto">
       <div className="flex gap-0 border border-white/10 rounded-t-lg overflow-hidden bg-white/5">
         {(["curl", "git"] as const).map((t) => (
           <button
@@ -52,12 +52,10 @@ function InstallWidget() {
           </button>
         ))}
       </div>
-      <div className="relative flex items-start bg-white/5 border border-t-0 border-white/10 rounded-b-lg px-5 py-4 font-mono text-sm sm:text-base min-w-0 w-full">
-        <span className="text-zinc-500 shrink-0 mr-3 leading-relaxed">$</span>
-        <pre className="select-all whitespace-pre pr-20 leading-relaxed text-zinc-200 text-left">{commands[tab]}</pre>
-        <div className="absolute right-3 top-3 sm:top-4">
-          <CopyButton text={commands[tab]} />
-        </div>
+      <div className="flex items-center bg-white/5 border border-t-0 border-white/10 rounded-b-lg px-5 py-4 font-mono text-sm sm:text-base min-w-0 w-full gap-4">
+        <span className="text-zinc-500 shrink-0 leading-relaxed">$</span>
+        <pre className="select-all whitespace-pre leading-relaxed text-zinc-200 text-left flex-1 min-w-0">{commands[tab]}</pre>
+        <CopyButton text={commands[tab]} />
       </div>
     </div>
   );
