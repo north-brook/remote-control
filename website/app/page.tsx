@@ -119,22 +119,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Preview */}
-        <section className="px-6 pb-20">
-          <div className="rounded-xl border border-white/10 overflow-hidden shadow-2xl shadow-black/50">
-            <video
-              autoPlay
-              muted
-              loop
-              playsInline
-              className="w-full h-auto"
-              poster="/preview.png"
-            >
-              <source src="/hero-demo.webm" type="video/webm" />
-              <source src="/hero-demo.mp4" type="video/mp4" />
-            </video>
-          </div>
-        </section>
 
         {/* Why */}
         <section className="px-6 pb-24">
