@@ -2,19 +2,6 @@
 
 import { useState } from "react";
 import { Terminal, Monitor, Code, Sparkle, Copy, Check } from "lucide-react";
-import { GitHubLink } from "./components/github-link";
-
-function Header() {
-  return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-black/80 backdrop-blur-md">
-      <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
-        <span className="font-bold text-sm tracking-tight">Remote Control</span>
-        <GitHubLink />
-      </div>
-    </header>
-  );
-}
-
 function CopyButton() {
   const [copied, setCopied] = useState(false);
   const command = "curl -fsSL https://remotecontrol.sh/install | bash";
@@ -54,7 +41,6 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export default function Home() {
   return (
     <>
-      <Header />
       <main className="max-w-4xl mx-auto">
         {/* Hero */}
         <section className="px-6 pt-24 pb-16 text-center">
@@ -245,28 +231,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Footer */}
-        <footer className="border-t border-white/10 py-8 text-center">
-          <div className="flex items-center justify-center gap-6 text-sm text-zinc-500">
-            <a
-              href="https://github.com/north-brook/remote-control"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-zinc-300 transition-colors"
-            >
-              GitHub
-            </a>
-            <span>·</span>
-            <a
-              href="https://northbrook.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-zinc-300 transition-colors"
-            >
-              North Brook
-            </a>
-          </div>
-        </footer>
       </main>
     </>
   );
