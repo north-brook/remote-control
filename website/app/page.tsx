@@ -54,7 +54,7 @@ function InstallWidget() {
       </div>
       <div className="flex items-center bg-white/5 border border-t-0 border-white/10 rounded-b-lg px-5 py-4 font-mono text-sm sm:text-base min-w-0 w-full gap-4">
         <span className="text-zinc-500 shrink-0 leading-relaxed">$</span>
-        <pre className="select-all whitespace-pre leading-relaxed text-zinc-200 text-left flex-1 min-w-0">{commands[tab]}</pre>
+        <pre className="select-all whitespace-pre leading-relaxed text-zinc-200 text-left flex-1 min-w-0 overflow-x-auto">{commands[tab]}</pre>
         <CopyButton text={commands[tab]} />
       </div>
     </div>
@@ -72,7 +72,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export default function Home() {
   return (
     <>
-      <main className="max-w-4xl mx-auto">
+      <main className="max-w-4xl mx-auto overflow-x-hidden">
         {/* Hero */}
         <section className="px-6 pt-24 pb-16 text-center">
           {/* Pill badge */}
