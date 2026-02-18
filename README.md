@@ -86,3 +86,20 @@ All credentials are saved locally in `~/.rc/settings.json` (plaintext, not synce
 - If you see "tailscale not found", install Tailscale and login once.
 - If no peers appear, run `tailscale status` to verify connectivity.
 - If the UI doesn't render, run in a TTY (not in a non-interactive shell).
+- If pressing **Enter** in remote SSH apps prints `^M` (and does not submit), add the zsh fix below on the **remote machine** and reconnect.
+
+### zsh fix for `^M` on Enter
+
+Add this to `~/.zshrc` on the remote machine:
+
+```zsh
+if [[ $- == *i* ]] && [[ -t 0 ]] && [[ -t 1 ]]; then
+  # Reset line discipline so Enter is newline (not literal ^M).
+  stty sane 2>/dev/null || true
+  stty icrnl -inlcr -igncr opost onlcr isig icanon iexten echo echoe echok echoctl 2>/dev/null || true
+
+  # Ensure modern terminal capabilities for interactive CLIs.
+  [[ -n "${TERM:-}" && "${TERM}" != "dumb" ]] || export TERM=xterm-256color
+  export COLORTERM="${COLORTERM:-truecolor}"
+fi
+```
