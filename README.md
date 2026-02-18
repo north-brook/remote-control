@@ -86,19 +86,19 @@ All credentials are saved locally in `~/.rc/settings.json` (plaintext, not synce
 - If you see "tailscale not found", install Tailscale and login once.
 - If no peers appear, run `tailscale status` to verify connectivity.
 - If the UI doesn't render, run in a TTY (not in a non-interactive shell).
-- If pressing **Enter** in remote SSH apps prints `^M` (and does not submit), add the zsh fix below on the **remote machine** and reconnect.
+- If remote SSH apps have broken interactive behavior (for example, **Enter** prints `^M`, input/editing feels off, or terminal capabilities are missing), add the shell helper below on the **remote machine** and reconnect.
 
-### zsh fix for `^M` on Enter
+### Shell helper for interactive SSH terminals
 
-Add this to `~/.zshrc` on the remote machine:
+Add this to your remote shell startup file (`~/.zshrc` or `~/.bashrc`) to normalize interactive terminal behavior:
 
 ```zsh
 if [[ $- == *i* ]] && [[ -t 0 ]] && [[ -t 1 ]]; then
-  # Reset line discipline so Enter is newline (not literal ^M).
+  # Normalize terminal line discipline for interactive shells.
   stty sane 2>/dev/null || true
   stty icrnl -inlcr -igncr opost onlcr isig icanon iexten echo echoe echok echoctl 2>/dev/null || true
 
-  # Ensure modern terminal capabilities for interactive CLIs.
+  # Ensure terminal capabilities expected by modern interactive CLIs.
   [[ -n "${TERM:-}" && "${TERM}" != "dumb" ]] || export TERM=xterm-256color
   export COLORTERM="${COLORTERM:-truecolor}"
 fi
