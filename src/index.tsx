@@ -407,14 +407,14 @@ function openSsh(host: string, user?: string, directory?: string): void {
   const target = user ? `${user}@${host}` : host;
   const command = buildSshDirectoryCommand(directory);
   if (!command) {
-    Bun.spawnSync(["ssh", "-t", target], {
+    Bun.spawnSync(["ssh", "-tt", target], {
       stdin: "inherit",
       stdout: "inherit",
       stderr: "inherit",
     });
     return;
   }
-  Bun.spawnSync(["ssh", "-t", target, command], {
+  Bun.spawnSync(["ssh", "-tt", target, command], {
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit",
