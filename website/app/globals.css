@@ -49,6 +49,15 @@ html {
 }
 
 /* Emerald gradient text utility */
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.blink-cursor {
+  animation: blink-cursor 1s step-end infinite;
+}
+
 .text-emerald-gradient {
   background: linear-gradient(135deg, #10b981 0%, #34d399 50%, #6ee7b7 100%);
   -webkit-background-clip: text;
