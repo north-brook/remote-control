@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Terminal, Monitor, Code, Sparkle, Copy, Check } from "lucide-react";
+import { TerminalDemo } from "./components/terminal-demo";
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -102,6 +103,8 @@ export default function Home() {
 
         </section>
 
+        {/* Terminal Demo */}
+        <TerminalDemo />
 
         {/* Features */}
         <section className="px-6 pb-24">
