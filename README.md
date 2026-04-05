@@ -42,6 +42,7 @@ rc
 Options:
 
 - `--all` include offline machines
+- `--debug` write verbose logs to `~/.rc/debug.log` and mirror them to stderr
 
 ## Keyboard Shortcuts
 
@@ -86,6 +87,7 @@ All credentials are saved locally in `~/.rc/settings.json` (plaintext, not synce
 - If you see "tailscale not found", install Tailscale and login once.
 - If no peers appear, run `tailscale status` to verify connectivity.
 - If the UI doesn't render, run in a TTY (not in a non-interactive shell).
+- If you need launch diagnostics, run `rc --debug` or set `RC_DEBUG=1`. Logs are written to `~/.rc/debug.log`.
 - If remote SSH apps have broken interactive behavior (for example, **Enter** prints `^M`, input/editing feels off, or terminal capabilities are missing), add the shell helper below on the **remote machine** and reconnect.
 
 ### Shell helper for interactive SSH terminals
