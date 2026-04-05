@@ -12,6 +12,7 @@ import { render } from "ink";
 import { useEffect, useRef, useState } from "react";
 import { Authenticate } from "./authenticate.js";
 import { Directory } from "./directory.js";
+import { sanitizeHostName } from "./host.js";
 import type { Mode, Peer } from "./machines.js";
 import { Picker } from "./machines.js";
 import {
@@ -181,8 +182,8 @@ function extractPeers(status: StatusJson, includeOffline: boolean): Peer[] {
   for (const peer of Object.values(peersRaw)) {
     const online = Boolean(peer?.Online);
     if (!includeOffline && !online) continue;
-    const name = peer?.DNSName || peer?.HostName || "(unknown)";
-    const shortName = String(name).split(".")[0];
+    const name = sanitizeHostName(String(peer?.DNSName || peer?.HostName || "(unknown)"));
+    const shortName = sanitizeHostName(String(name).split(".")[0]);
     const ips: string[] = peer?.TailscaleIPs || [];
     const ip = ips[0] || "";
     const user = displayUser(peer, users);
@@ -210,9 +211,11 @@ function extractPeers(status: StatusJson, includeOffline: boolean): Peer[] {
 }
 
 function preferredHost(peer: Peer): string {
-  if (peer.name && peer.name !== "(unknown)") return peer.name;
-  if (peer.shortName && peer.shortName !== "(unknown)") return peer.shortName;
-  return peer.ip;
+  const shortName = sanitizeHostName(peer.shortName);
+  if (shortName && shortName !== "(unknown)") return shortName;
+  const name = sanitizeHostName(peer.name);
+  if (name && name !== "(unknown)") return name;
+  return sanitizeHostName(peer.ip);
 }
 
 function machineKey(peer: Peer): string {
@@ -457,6 +460,15 @@ function openCursor(host: string, user: string | undefined, directory: string | 
   }
   if (!hasCommand("cursor")) {
     eprint("Cursor CLI not found. Install Cursor and run 'Install \"cursor\" command' from Cursor command palette.");
+    process.exit(1);
+  }
+  const extensions = Bun.spawnSync(["cursor", "--list-extensions"], {
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  const installedExtensions = new TextDecoder().decode(extensions.stdout);
+  if (extensions.exitCode !== 0 || !installedExtensions.split(/\r?\n/).includes("anysphere.remote-ssh")) {
+    eprint("Cursor Remote SSH extension is not installed. Install 'Remote - SSH' in Cursor and try again.");
     process.exit(1);
   }
   const target = user ? `${user}@${host}` : host;
