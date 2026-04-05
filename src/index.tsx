@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { render } from "ink";
 import { useEffect, useRef, useState } from "react";
 import { Authenticate } from "./authenticate.js";
+import { debugLog, getDebugLogPath, initDebugLogging, isDebugEnabled } from "./debug.js";
 import { Directory } from "./directory.js";
 import { sanitizeHostName } from "./host.js";
 import type { Mode, Peer } from "./machines.js";
@@ -63,9 +64,26 @@ const ANSI = {
 const HOME_DIR = process.env.HOME || process.env.USERPROFILE || "";
 const SETTINGS_DIR = join(HOME_DIR, ".rc");
 const SETTINGS_PATH = join(SETTINGS_DIR, "settings.json");
+const DEBUG_LOG_PATH = join(SETTINGS_DIR, "debug.log");
+
+function safePeerForLog(peer: Peer | undefined): Record<string, unknown> | undefined {
+  if (!peer) return undefined;
+  return {
+    id: peer.id,
+    ip: peer.ip,
+    name: peer.name,
+    online: peer.online,
+    os: peer.os,
+    reachable: peer.reachable,
+    selfPeer: peer.selfPeer,
+    shortName: peer.shortName,
+    user: peer.user,
+  };
+}
 
 function eprint(msg: string): void {
   process.stderr.write(`${msg}\n`);
+  debugLog("stderr", { msg });
 }
 
 function loadSettings(): RcSettings {
@@ -104,11 +122,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function parseArgs(): { includeOffline: boolean; demo: boolean } {
+function parseArgs(): { includeOffline: boolean; debug: boolean; demo: boolean } {
   const argv = process.argv.slice(2);
   const includeOffline = argv.includes("--all");
+  const debug = argv.includes("--debug");
   const demo = argv.includes("--demo");
-  return { includeOffline, demo };
+  return { includeOffline, debug, demo };
 }
 
 function demoPeers(): Peer[] {
@@ -133,6 +152,7 @@ function demoPeers(): Peer[] {
 }
 
 function runTailscaleStatus(): StatusJson {
+  debugLog("tailscale.status.start");
   const proc = Bun.spawnSync(["tailscale", "status", "--json"], {
     stdout: "pipe",
     stderr: "pipe",
@@ -149,7 +169,12 @@ function runTailscaleStatus(): StatusJson {
   }
   const out = new TextDecoder().decode(proc.stdout);
   try {
-    return JSON.parse(out) as StatusJson;
+    const parsed = JSON.parse(out) as StatusJson;
+    debugLog("tailscale.status.success", {
+      peerCount: Object.keys(parsed.Peer ?? {}).length,
+      selfHost: parsed.Self?.HostName || "",
+    });
+    return parsed;
   } catch {
     eprint("Failed to parse tailscale status JSON.");
     process.exit(1);
@@ -268,6 +293,13 @@ function markMachineUsed(peer: Peer, mode: Mode, user?: string, password?: strin
   settings.lastMachineKey = key;
   settings.lastMode = mode;
   saveSettings(settings);
+  debugLog("settings.machine_used", {
+    directory: trimmedDirectory || "",
+    machineKey: key,
+    mode,
+    peer: safePeerForLog(peer),
+    user: user || existing.sshUser || "",
+  });
 }
 
 function isDisabled(peer: Peer): boolean {
@@ -303,6 +335,7 @@ async function pingHost(host: string): Promise<boolean | null> {
 }
 
 async function startAvailabilityChecks(peers: Peer[], onUpdate: () => void): Promise<void> {
+  debugLog("availability.start", { count: peers.length });
   const queue = peers.filter((peer) => peer.online).slice();
   const concurrency = Math.min(6, Math.max(1, queue.length));
   let pingSupported = true;
@@ -314,6 +347,7 @@ async function startAvailabilityChecks(peers: Peer[], onUpdate: () => void): Pro
       const target = peer.ip || preferredHost(peer);
       if (!target) {
         peer.reachable = false;
+        debugLog("availability.result", { host: "", peer: safePeerForLog(peer), reachable: false, reason: "missing-target" });
         onUpdate();
         continue;
       }
@@ -326,8 +360,10 @@ async function startAvailabilityChecks(peers: Peer[], onUpdate: () => void): Pro
       if (result === null) {
         pingSupported = false;
         peer.reachable = true;
+        debugLog("availability.result", { host: target, peer: safePeerForLog(peer), reachable: true, reason: "ping-unsupported" });
       } else {
         peer.reachable = result;
+        debugLog("availability.result", { host: target, peer: safePeerForLog(peer), reachable: result });
       }
       onUpdate();
     }
@@ -340,13 +376,17 @@ const SSH_KEY_PATH = join(HOME_DIR, ".ssh", "id_ed25519");
 const SSH_KEY_PUB_PATH = join(HOME_DIR, ".ssh", "id_ed25519.pub");
 
 function ensureSshKey(): boolean {
-  if (existsSync(SSH_KEY_PUB_PATH)) return true;
+  if (existsSync(SSH_KEY_PUB_PATH)) {
+    debugLog("ssh.key.present", { path: SSH_KEY_PUB_PATH });
+    return true;
+  }
   const sshDir = join(HOME_DIR, ".ssh");
   mkdirSync(sshDir, { recursive: true });
   const proc = Bun.spawnSync(["ssh-keygen", "-t", "ed25519", "-f", SSH_KEY_PATH, "-N", ""], {
     stdout: "ignore",
     stderr: "ignore",
   });
+  debugLog("ssh.key.generate", { exitCode: proc.exitCode, path: SSH_KEY_PATH });
   return proc.exitCode === 0;
 }
 
@@ -359,12 +399,14 @@ function testSshKeyAuth(host: string, user: string): boolean {
       stderr: "ignore",
     },
   );
+  debugLog("ssh.key_auth_test", { exitCode: proc.exitCode, target });
   return proc.exitCode === 0;
 }
 
 function hasCommand(cmd: string): boolean {
   const tool = process.platform === "win32" ? "where" : "which";
   const proc = Bun.spawnSync([tool, cmd], { stdout: "ignore", stderr: "ignore" });
+  debugLog("command.check", { cmd, exists: proc.exitCode === 0 });
   return proc.exitCode === 0;
 }
 
@@ -381,6 +423,7 @@ function copySshKey(host: string, user: string, password: string): boolean {
       stderr: "ignore",
     },
   );
+  debugLog("ssh.copy_key", { exitCode: proc.exitCode, target });
   return proc.exitCode === 0;
 }
 
@@ -399,7 +442,15 @@ function openScreenSharing(host: string, user?: string, password?: string): void
   } else {
     url = `vnc://${host}?quality=high`;
   }
-  Bun.spawn(["open", url]);
+  const proc = Bun.spawnSync(["open", url], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  debugLog("screen_sharing.launch", {
+    exitCode: proc.exitCode,
+    host,
+    url: user && password ? `vnc://${encodeURIComponent(user)}:<redacted>@${host}?quality=high` : url,
+  });
 }
 
 function openSsh(host: string, user?: string, directory?: string): void {
@@ -409,6 +460,7 @@ function openSsh(host: string, user?: string, directory?: string): void {
   }
   const target = user ? `${user}@${host}` : host;
   const command = buildSshDirectoryCommand(directory);
+  debugLog("ssh.launch", { directory: directory?.trim() || "", hasDirectoryCommand: Boolean(command), target });
   if (!command) {
     Bun.spawnSync(["ssh", "-tt", target], {
       stdin: "inherit",
@@ -435,8 +487,12 @@ function resolveRemoteDirectory(host: string, user: string | undefined, director
       stderr: "ignore",
     },
   );
-  if (proc.exitCode !== 0) return requested;
+  if (proc.exitCode !== 0) {
+    debugLog("cursor.remote_directory", { exitCode: proc.exitCode, requested, resolved: requested, target });
+    return requested;
+  }
   const resolved = new TextDecoder().decode(proc.stdout).trim();
+  debugLog("cursor.remote_directory", { exitCode: proc.exitCode, requested, resolved: resolved || requested, target });
   return resolved || requested;
 }
 
@@ -476,16 +532,18 @@ function openCursor(host: string, user: string | undefined, directory: string | 
   const remoteDirectory = resolveRemoteDirectory(host, user, directory);
   if (remoteDirectory.startsWith("/")) {
     const folderUri = buildCursorFolderUri(target, remoteDirectory);
-    Bun.spawn(["cursor", "--folder-uri", folderUri, "--new-window"], {
-      stdout: "ignore",
-      stderr: "ignore",
+    const proc = Bun.spawnSync(["cursor", "--folder-uri", folderUri, "--new-window"], {
+      stdout: "pipe",
+      stderr: "pipe",
     });
+    debugLog("cursor.launch", { exitCode: proc.exitCode, mode: "folder-uri", remoteDirectory, target });
     return;
   }
-  Bun.spawn(["cursor", "--remote", `ssh-remote+${target}`, requested, "--new-window"], {
-    stdout: "ignore",
-    stderr: "ignore",
+  const proc = Bun.spawnSync(["cursor", "--remote", `ssh-remote+${target}`, requested, "--new-window"], {
+    stdout: "pipe",
+    stderr: "pipe",
   });
+  debugLog("cursor.launch", { exitCode: proc.exitCode, mode: "remote", remoteDirectory: requested, target });
 }
 
 function ping(host: string): void {
@@ -536,6 +594,7 @@ function App({ peers, cursorAvailable, screenAvailable, initialSelected, initial
   }, [peers]);
 
   const handleSelect = (peer: Peer, mode: Mode) => {
+    debugLog("picker.select", { mode, peer: safePeerForLog(peer) });
     // Ping doesn't need auth
     if (mode === "ping") {
       onExit({ type: "action", peer, mode });
@@ -549,6 +608,13 @@ function App({ peers, cursorAvailable, screenAvailable, initialSelected, initial
     const settings = loadSettings();
     const key = machineKey(peer);
     const entry = settings.machines[key];
+    debugLog("picker.entry", {
+      hasPassword: Boolean(entry?.sshPassword),
+      hasUser: Boolean(entry?.sshUser),
+      machineKey: key,
+      mode,
+      peer: safePeerForLog(peer),
+    });
 
     // For SSH/Cursor, check if key auth already works
     if (mode === "ssh" || mode === "cursor") {
@@ -559,6 +625,7 @@ function App({ peers, cursorAvailable, screenAvailable, initialSelected, initial
       }
 
       if (entry?.sshUser && testSshKeyAuth(peer.shortName, entry.sshUser)) {
+        debugLog("picker.auth_reused", { mode, peer: safePeerForLog(peer), user: entry.sshUser });
         if (mode === "cursor") {
           setPage({ type: "directory", peer, user: entry.sshUser });
           return;
@@ -570,17 +637,20 @@ function App({ peers, cursorAvailable, screenAvailable, initialSelected, initial
 
     // For VNC, check if we have stored credentials
     if (mode === "vnc" && entry?.sshUser && entry?.sshPassword) {
+      debugLog("picker.vnc_credentials_reused", { peer: safePeerForLog(peer), user: entry.sshUser });
       onExit({ type: "action", peer, mode, user: entry.sshUser, password: entry.sshPassword });
       return;
     }
 
     // Need auth for SSH/Cursor (to copy key) and VNC (to connect)
+    debugLog("picker.auth_required", { mode, peer: safePeerForLog(peer) });
     setPage({ type: "auth", peer, mode });
   };
 
   const handleAuthSubmit = (user: string, password: string) => {
     if (page.type !== "auth") return;
     const { peer, mode } = page;
+    debugLog("auth.submit", { mode, peer: safePeerForLog(peer), user });
 
     // For SSH/Cursor, copy the key
     if (mode === "ssh" || mode === "cursor") {
@@ -603,6 +673,7 @@ function App({ peers, cursorAvailable, screenAvailable, initialSelected, initial
       updatedAt: nowIso(),
     };
     saveSettings(settings);
+    debugLog("auth.saved", { mode, peer: safePeerForLog(peer), user });
 
     if (mode === "cursor") {
       setPage({ type: "directory", peer, user });
@@ -620,6 +691,7 @@ function App({ peers, cursorAvailable, screenAvailable, initialSelected, initial
     if (page.type !== "directory") return;
     const { peer, user } = page;
     const trimmed = directory.trim();
+    debugLog("directory.submit", { directory: trimmed || "~", peer: safePeerForLog(peer), user });
 
     if (trimmed) {
       const settings = loadSettings();
@@ -790,7 +862,15 @@ async function promptFallback(peers: Peer[]): Promise<Peer | null> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<number> {
-  const { includeOffline, demo } = parseArgs();
+  const { includeOffline, debug, demo } = parseArgs();
+  initDebugLogging(DEBUG_LOG_PATH, debug, process.argv.slice(2));
+  debugLog("main.start", {
+    debugEnabled: isDebugEnabled(),
+    debugLogPath: getDebugLogPath(),
+    demo,
+    includeOffline,
+    platform: process.platform,
+  });
   const settings = loadSettings();
   const peers = demo
     ? demoPeers()
@@ -799,6 +879,13 @@ async function main(): Promise<number> {
   const pickerInitialMode = initialMode(settings);
   const cursorAvailable = hasCommand("cursor");
   const screenAvailable = process.platform === "darwin";
+  debugLog("main.peers_ready", {
+    count: peers.length,
+    cursorAvailable,
+    initialMode: pickerInitialMode,
+    initialSelected: pickerInitialSelected,
+    screenAvailable,
+  });
   if (peers.length === 0) {
     process.stdout.write("No peers found.\n");
     return 1;
@@ -846,11 +933,19 @@ async function main(): Promise<number> {
 
   if (demo) {
     // Demo mode: exit cleanly without connecting
+    debugLog("main.demo_exit");
     return 0;
   }
 
   markMachineUsed(peer, mode, user, password, directory);
   const host = mode === "ssh" || mode === "cursor" ? peer.shortName : preferredHost(peer) || peer.ip;
+  debugLog("main.result", {
+    directory: directory?.trim() || "",
+    host,
+    mode,
+    peer: safePeerForLog(peer),
+    user: user || "",
+  });
 
   if (mode === "vnc") {
     openScreenSharing(host, user, password);
